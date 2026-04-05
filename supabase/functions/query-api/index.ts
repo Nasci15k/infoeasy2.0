@@ -12,26 +12,38 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('SERVER ERROR: Missing environment variables');
+      throw new Error('Configuração do servidor incompleta (Missing Secrets)');
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: { Authorization: req.headers.get('Authorization')! },
+      },
+    });
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!user) {
+    if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Não autorizado' }),
+        JSON.stringify({ error: 'Não autorizado ou sessão expirada' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { apiId, queryValue } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { apiId, queryValue } = body;
+
+    if (!apiId || queryValue === undefined) {
+      return new Response(
+        JSON.stringify({ error: 'Parâmetros apiId ou queryValue ausentes' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Buscar dados da API
     const { data: api, error: apiError } = await supabaseClient
@@ -42,7 +54,7 @@ serve(async (req) => {
 
     if (apiError || !api) {
       return new Response(
-        JSON.stringify({ error: 'API não encontrada' }),
+        JSON.stringify({ error: 'Módulo de consulta não encontrado' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -54,25 +66,24 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .single();
 
-    if (limits && limits.daily_count >= limits.daily_limit) {
+    if (limits && Number(limits.daily_count) >= Number(limits.daily_limit)) {
       return new Response(
-        JSON.stringify({ error: 'Limite diário atingido' }),
+        JSON.stringify({ error: 'Seu limite diário de consultas foi atingido.' }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Processar o endpoint armazenado
+    // Processar o endpoint
     const endpointStore = api.endpoint || '';
     let apiUrl = '';
     
-    // Pegar token puro passado (idealmente estaria no secrets do Supabase)
     const TOKEN_PANEL = "PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk";
     const TOKEN_DUALITY = "DUALITY-FREE";
 
-    const cleanValue = queryValue.replace(/\D/g, '');
-    const encodedValue = encodeURIComponent(queryValue);
+    const valueStr = String(queryValue);
+    const cleanValue = valueStr.replace(/\D/g, '');
+    const encodedValue = encodeURIComponent(valueStr);
     
-    // Determinar se o endpoint segue a nova arquitetura com provider:*
     if (endpointStore.startsWith('panel:')) {
       const modulo = endpointStore.split(':')[1];
       apiUrl = `http://45.190.208.48:7070/consulta?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
@@ -83,132 +94,86 @@ serve(async (req) => {
       const apiName = endpointStore.split(':')[1];
       apiUrl = `https://duality.lat/?token=${TOKEN_DUALITY}&api=${apiName}&query=${cleanValue}`;
     } else {
-      // Fallback para api antiga caso alguma escape
       apiUrl = endpointStore
         .replace('{valor}', encodedValue)
-        .replace('{ddd}', queryValue.substring(0, 2))
-        .replace('{telefone}', queryValue.substring(2));
+        .replace('{ddd}', valueStr.substring(0, 2))
+        .replace('{telefone}', valueStr.substring(2));
     }
     
-    console.log('API Name:', api.name);
-    console.log('Fetching:', apiUrl.replace(TOKEN_PANEL, 'HIDDEN').replace(TOKEN_DUALITY, 'HIDDEN'));
+    console.log(`Processing ${api.name} for ${user.email}`);
 
     let responseData: any = null;
 
     try {
+      // Timeout resiliente (Deno 1.x)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 segundos
+
       const response = await fetch(apiUrl, {
         headers: { 
-          'User-Agent': 'Mozilla/5.0',
-          'Accept': 'application/json, text/plain, */*'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
         },
-        signal: AbortSignal.timeout(15000), // 15 segundos timeout
+        signal: controller.signal,
       });
 
-      console.log('Response status:', response.status);
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`Servidor externo retornou status ${response.status}`);
+        throw new Error(`O provedor retornou erro HTTP ${response.status}`);
       }
 
       const textData = await response.text();
       
-      // Checar mensagens clássicas de erro de conexão SQL na ponta
-      if (textData.includes('no such table') || textData.includes('SQLSTATE') || textData.includes('General error') || textData.includes('Connection refused')) {
-        return new Response(
-          JSON.stringify({ 
-            success: false,
-            error: true,
-            message: 'O fornecedor da API está fora do ar ou com problemas temporários.',
-            api: api.name
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      // Checagem de erros SQL/Servidor no retorno do provedor
+      const serverErrorKeywords = ['SQLSTATE', 'General error', 'Connection refused', 'PDOException', 'no such table'];
+      if (serverErrorKeywords.some(kw => textData.includes(kw))) {
+         throw new Error('A fonte de dados está instável ou em manutenção.');
       }
 
-      // Parser Resiliente JSON
-      let parsed: any = null;
+      // Parser Robusto
       try {
-        parsed = JSON.parse(textData);
-      } catch (e) {
+        responseData = JSON.parse(textData);
+      } catch {
+        // Tentativa de extração de JSON sujo
         const firstBrace = textData.indexOf('{');
-        const firstBracket = textData.indexOf('[');
-        const startIndex = firstBrace !== -1 && firstBracket !== -1 
-          ? Math.min(firstBrace, firstBracket) 
-          : Math.max(firstBrace, firstBracket);
-          
-        if (startIndex !== -1) {
-          try {
-            parsed = JSON.parse(textData.slice(startIndex));
-          } catch (_) {
-            const lastBrace = textData.lastIndexOf('}');
-            const lastBracket = textData.lastIndexOf(']');
-            const endIndex = Math.max(lastBrace, lastBracket);
-            if (endIndex > startIndex) {
-              try {
-                parsed = JSON.parse(textData.slice(startIndex, endIndex + 1));
-              } catch (_) {
-                parsed = null;
-              }
-            }
-          }
+        const lastBrace = textData.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          responseData = JSON.parse(textData.slice(firstBrace, lastBrace + 1));
         }
       }
 
-      if (parsed && typeof parsed === 'object') {
-        if (parsed.erro || parsed.error || (parsed.status === false && parsed.msg)) {
-          const errorMsg = parsed.msg || parsed.erro || parsed.error || parsed.message || 'Dados não encontrados no momento';
-          return new Response(
-            JSON.stringify({ 
-              success: false,
-              notFound: true,
-              message: typeof errorMsg === 'string' ? errorMsg : 'Nenhum dado encontrado para essa busca.',
-              api: api.name
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        if (Object.keys(parsed).length > 0) {
-          responseData = parsed;
-        }
+      if (!responseData || typeof responseData !== 'object') {
+        throw new Error('A resposta do provedor é inválida ou vazia.');
       }
 
-      if (!responseData) {
-        return new Response(
-          JSON.stringify({ 
-            success: false,
-            notFound: true,
-            message: 'A fonte não retornou dados úteis (Retorno Vazio).',
-            api: api.name
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      // Checar se o provedor retornou erro no JSON
+      if (responseData.erro || responseData.error || (responseData.status === false && responseData.msg)) {
+         const msg = responseData.msg || responseData.erro || responseData.error || 'Nenhum registro encontrado.';
+         return new Response(
+           JSON.stringify({ success: false, notFound: true, message: String(msg), api: api.name }),
+           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+         );
       }
+
     } catch (fetchError) {
-      console.error('Fetch error:', fetchError);
-      const errorMsg = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
-      
-      if (errorMsg.includes('timeout') || errorMsg.includes('AbortError')) {
-        return new Response(
-          JSON.stringify({ 
-            success: false,
-            error: true,
-            message: 'A consulta demorou muito e excedeu o tempo limite. Tente novamente.',
-            api: api.name
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      throw fetchError;
+      console.error('Fetch error:', fetchError.message);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: true, 
+          message: fetchError.name === 'AbortError' ? 'Tempo esgotado (Timeout)' : fetchError.message, 
+          api: api.name 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Sanitização de dados (Filtrar "astra" e metadados sensíveis do provedor)
+    // Sanitização Profunda (Recursiva)
     const sanitizeData = (obj: any): any => {
       const BLACK_LIST = [
-        'consumo_hoje', 'reset_em', 'total_diario', 'limites', 
-        'protocolo', 'sucesso', 'usuario', 'conta', 'success',
-        'token', 'key', 'apikey', 'auth'
+        'consumo_hoje', 'reset_em', 'total_diario', 'limites', 'token', 
+        'apikey', 'auth', 'senha', 'password', 'protocolo', 'usuario', 'conta'
       ];
 
       if (typeof obj === 'string') {
@@ -222,9 +187,8 @@ serve(async (req) => {
       if (obj && typeof obj === 'object') {
         const filtered: any = {};
         for (const [key, value] of Object.entries(obj)) {
-          const lowerKey = key.toLowerCase();
-          // Pular se a chave estiver na lista negra ou contiver termos sensíveis
-          if (BLACK_LIST.some(item => lowerKey === item || lowerKey.includes('token') || lowerKey.includes('apikey'))) {
+          const k = key.toLowerCase();
+          if (BLACK_LIST.some(item => k === item || k.includes('token') || k.includes('apikey'))) {
             continue;
           }
           filtered[key] = sanitizeData(value);
@@ -234,44 +198,43 @@ serve(async (req) => {
       return obj;
     };
 
-    const filteredData = sanitizeData(responseData);
+    const cleanData = sanitizeData(responseData);
 
-    // Salvar no histórico
-    await supabaseClient.from('query_history').insert({
-      user_id: user.id,
-      api_id: apiId,
-      query_value: queryValue,
-      response_data: filteredData,
-    });
+    // Persistência no Histórico (Usa service role se necessário, mas aqui usa o contexto do user)
+    try {
+      await supabaseClient.from('query_history').insert({
+        user_id: user.id,
+        api_id: apiId,
+        query_value: String(queryValue),
+        response_data: cleanData,
+      });
+    } catch (dbError) {
+      console.error('History Save Error:', dbError);
+      // Não falha a consulta se o histórico falhar, apenas loga
+    }
 
-    // Atualizar contador de uso
+    // Atualizar Limites
     if (limits) {
       await supabaseClient
         .from('user_limits')
         .update({ 
-          daily_count: limits.daily_count + 1,
-          monthly_count: limits.monthly_count + 1
+          daily_count: Number(limits.daily_count) + 1,
+          monthly_count: Number(limits.monthly_count) + 1
         })
         .eq('user_id', user.id);
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        data: filteredData,
-        api: api.name
-      }),
+      JSON.stringify({ success: true, data: cleanData, api: api.name }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    console.error('CRITICAL ERROR:', error);
     return new Response(
       JSON.stringify({ 
-        success: false,
-        error: true,
-        message: errorMessage
+        error: true, 
+        message: error instanceof Error ? error.message : 'Erro interno do servidor' 
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
