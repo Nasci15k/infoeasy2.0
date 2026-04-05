@@ -84,7 +84,13 @@ export default function QueryPage() {
   }
 
   if (!category) {
-    return null;
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-center">
+        <h2 className="text-2xl font-bold text-destructive mb-2">Categoria não encontrada</h2>
+        <p className="text-muted-foreground mb-6">A categoria que você está tentando acessar não existe ou foi removida.</p>
+        <Button onClick={() => navigate('/')}>Voltar para o Início</Button>
+      </div>
+    );
   }
 
   return (

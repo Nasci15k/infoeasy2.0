@@ -138,10 +138,24 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
                 <SelectValue placeholder="Selecione uma API" />
               </SelectTrigger>
               <SelectContent>
-                {apis.map((api) => (
-                  <SelectItem key={api.id} value={api.id}>
-                    {api.name}
-                  </SelectItem>
+                {Object.entries(
+                  apis.reduce((acc: any, api) => {
+                    const group = api.group_name || 'Geral';
+                    if (!acc[group]) acc[group] = [];
+                    acc[group].push(api);
+                    return acc;
+                  }, {})
+                ).map(([group, groupApis]: [string, any]) => (
+                  <div key={group}>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/30 uppercase tracking-wider">
+                      {group}
+                    </div>
+                    {groupApis.map((api: any) => (
+                      <SelectItem key={api.id} value={api.id}>
+                        {api.name}
+                      </SelectItem>
+                    ))}
+                  </div>
                 ))}
               </SelectContent>
             </Select>

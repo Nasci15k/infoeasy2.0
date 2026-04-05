@@ -17,13 +17,12 @@ export function AdminStats() {
   const { data: stats } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      const [profiles, limits, queries, apis, overrides, userRoles] = await Promise.all([
+      const [profiles, limits, queries, apis, overrides] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('user_limits').select('*'),
         supabase.from('query_history').select('*').gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
         supabase.from('apis').select('*'),
         supabase.from('admin_stats_override').select('*'),
-        supabase.from('user_roles').select('*'),
       ]);
 
       const overrideMap = overrides.data?.reduce((acc: any, override: any) => {
@@ -34,10 +33,11 @@ export function AdminStats() {
       const approved = profiles.data?.filter(p => p.status === 'approved').length || 0;
       const pending = profiles.data?.filter(p => p.status === 'pending').length || 0;
       const suspended = profiles.data?.filter(p => p.status === 'suspended').length || 0;
-      const admins = userRoles.data?.filter(r => r.role === 'admin').length || 0;
-      const premium = userRoles.data?.filter(r => r.role === 'usuario_premium').length || 0;
-      const revendedor = userRoles.data?.filter(r => r.role === 'revendedor').length || 0;
-      const teste = userRoles.data?.filter(r => r.role === 'teste').length || 0;
+      
+      const admins = profiles.data?.filter(p => p.role === 'admin').length || 0;
+      const premium = profiles.data?.filter(p => p.role === 'usuario_premium').length || 0;
+      const revendedor = profiles.data?.filter(p => p.role === 'revendedor').length || 0;
+      const teste = profiles.data?.filter(p => p.role === 'teste').length || 0;
       const queriesToday = queries.data?.length || 0;
       const activeApis = apis.data?.filter(a => a.is_active).length || 0;
       

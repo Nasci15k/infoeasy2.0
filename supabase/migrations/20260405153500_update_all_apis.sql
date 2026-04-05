@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS public.api_categories (
     name text NOT NULL,
     description text,
     icon text,
+    slug text NOT NULL UNIQUE,
     created_at timestamp with time zone DEFAULT now()
 );
 
@@ -29,13 +30,13 @@ TRUNCATE TABLE public.query_history CASCADE;
 TRUNCATE TABLE public.apis CASCADE;
 TRUNCATE TABLE public.api_categories CASCADE;
 
-INSERT INTO public.api_categories (id, name, description, icon) VALUES
-('a0000000-0000-0000-0000-000000000001', 'VEÍCULOS', 'Consultas de Placa, Chassi, Motor e Renavam', '🚗'),
-('a0000000-0000-0000-0000-000000000002', 'PESSOAS', 'Consultas por CPF, RG, Nome, Parentes, Score', '👤'),
-('a0000000-0000-0000-0000-000000000003', 'EMPRESAS', 'Consultas por CNPJ', '🏢'),
-('a0000000-0000-0000-0000-000000000004', 'CONTATO E ENDEREÇO', 'Consultas de Telefone, Email e CEP', '📞'),
-('a0000000-0000-0000-0000-000000000005', 'PROCESSOS E CRIMINAIS', 'Consultas de Processos Judiciais e Antecedentes', '⚖️'),
-('a0000000-0000-0000-0000-000000000006', 'FOTOS', 'Busca de Fotos de RG/CNH por Estado', '📸');
+INSERT INTO public.api_categories (id, name, description, icon, slug) VALUES
+('a0000000-0000-0000-0000-000000000001', 'VEÍCULOS', 'Consultas de Placa, Chassi, Motor e Renavam', '🚗', 'veiculos'),
+('a0000000-0000-0000-0000-000000000002', 'PESSOAS', 'Consultas por CPF, RG, Nome, Parentes, Score', '👤', 'pessoas'),
+('a0000000-0000-0000-0000-000000000003', 'EMPRESAS', 'Consultas por CNPJ', '🏢', 'empresas'),
+('a0000000-0000-0000-0000-000000000004', 'CONTATO E ENDEREÇO', 'Consultas de Telefone, Email e CEP', '📞', 'contato'),
+('a0000000-0000-0000-0000-000000000005', 'PROCESSOS E CRIMINAIS', 'Consultas de Processos Judiciais e Antecedentes', '⚖️', 'criminal'),
+('a0000000-0000-0000-0000-000000000006', 'FOTOS', 'Busca de Fotos de RG/CNH por Estado', '📸', 'fotos');
 
 -- INSERÇÕES DE MÓDULOS - VEÍCULOS
 INSERT INTO public.apis (category_id, name, description, endpoint) VALUES

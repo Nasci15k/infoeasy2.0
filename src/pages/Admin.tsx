@@ -19,11 +19,11 @@ import { SellersTab } from '@/components/admin/SellersTab';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export default function Admin() {
-  const { profile } = useAuth();
+  const { profile, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isLoading: roleLoading } = useUserRole();
   const [editingLimits, setEditingLimits] = useState<string | null>(null);
   const [dailyLimit, setDailyLimit] = useState(10);
   const [monthlyLimit, setMonthlyLimit] = useState(300);
@@ -31,7 +31,9 @@ export default function Admin() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
   useEffect(() => {
-    if (profile && !isAdmin) {
+    if (loading || roleLoading) return;
+
+    if (!profile || !isAdmin) {
       navigate('/');
       toast({
         title: 'Acesso negado',
@@ -39,7 +41,19 @@ export default function Admin() {
         variant: 'destructive',
       });
     }
-  }, [profile, isAdmin, navigate, toast]);
+  }, [profile, isAdmin, loading, roleLoading, navigate, toast]);
+
+  if (loading || roleLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!profile || !isAdmin) {
+    return null;
+  }
 
   const { data: users, refetch: refetchUsers } = useQuery({
     queryKey: ['all-users'],
@@ -57,16 +71,10 @@ export default function Admin() {
       
       if (limitsError) throw limitsError;
 
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-      
-      if (rolesError) throw rolesError;
-
       return profiles.map(profile => ({
         ...profile,
         limits: limits.find(l => l.user_id === profile.id),
-        user_role: roles.find(r => r.user_id === profile.id)?.role || 'teste'
+        user_role: profile.role || 'teste'
       }));
     },
     enabled: isAdmin,
@@ -92,16 +100,9 @@ export default function Admin() {
 
       if (profileError) throw profileError;
 
-      // Update or create user role
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .upsert(
-          { user_id: userId, role: role as any },
-          { onConflict: 'user_id' }
-        );
-
-      if (roleError) throw roleError;
-
+      // No role update needed here as it's already in profiles
+      // If we wanted to update role, it would be in the profile update above.
+      
       await refetchUsers();
 
       toast({

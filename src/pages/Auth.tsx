@@ -21,7 +21,7 @@ export default function Auth() {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
-  const [turnstileToken, setTurnstileToken] = useState<string | null>('bypassed'); // BYPASS TEMPORÁRIO
+  const [turnstileToken, setTurnstileToken] = useState<string | null>('bypassed'); // BYPASS TEMPORÃRIO
   const [turnstileError, setTurnstileError] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -55,8 +55,8 @@ export default function Auth() {
     
     if (!turnstileToken) {
       toast({
-        title: 'Verificação necessária',
-        description: 'Complete a verificação de segurança antes de continuar.',
+        title: 'VerificaÃ§Ã£o necessÃ¡ria',
+        description: 'Complete a verificaÃ§Ã£o de seguranÃ§a antes de continuar.',
         variant: 'destructive',
       });
       return;
@@ -68,8 +68,8 @@ export default function Auth() {
       const isValid = await verifyTurnstile(turnstileToken);
       if (!isValid) {
         toast({
-          title: 'Verificação falhou',
-          description: 'A verificação de segurança falhou. Tente novamente.',
+          title: 'VerificaÃ§Ã£o falhou',
+          description: 'A verificaÃ§Ã£o de seguranÃ§a falhou. Tente novamente.',
           variant: 'destructive',
         });
         setTurnstileToken(null);
@@ -94,7 +94,7 @@ export default function Auth() {
     } catch (error: any) {
       toast({
         title: 'Erro no login',
-        description: error.message || 'Credenciais inválidas.',
+        description: error.message || 'Credenciais invÃ¡lidas.',
         variant: 'destructive',
       });
     } finally {
@@ -107,8 +107,8 @@ export default function Auth() {
     
     if (!turnstileToken) {
       toast({
-        title: 'Verificação necessária',
-        description: 'Complete a verificação de segurança antes de continuar.',
+        title: 'VerificaÃ§Ã£o necessÃ¡ria',
+        description: 'Complete a verificaÃ§Ã£o de seguranÃ§a antes de continuar.',
         variant: 'destructive',
       });
       return;
@@ -120,8 +120,8 @@ export default function Auth() {
       const isValid = await verifyTurnstile(turnstileToken);
       if (!isValid) {
         toast({
-          title: 'Verificação falhou',
-          description: 'A verificação de segurança falhou. Tente novamente.',
+          title: 'VerificaÃ§Ã£o falhou',
+          description: 'A verificaÃ§Ã£o de seguranÃ§a falhou. Tente novamente.',
           variant: 'destructive',
         });
         setTurnstileToken(null);
@@ -148,7 +148,7 @@ export default function Auth() {
       if (data.user) {
         toast({
           title: 'Cadastro realizado',
-          description: 'Sua conta foi criada e está aguardando aprovação do administrador.',
+          description: 'Sua conta foi criada e estÃ¡ aguardando aprovaÃ§Ã£o do administrador.',
         });
         setEmail('');
         setPassword('');
@@ -159,7 +159,7 @@ export default function Auth() {
     } catch (error: any) {
       toast({
         title: 'Erro no cadastro',
-        description: error.message || 'Não foi possível criar a conta.',
+        description: error.message || 'NÃ£o foi possÃ­vel criar a conta.',
         variant: 'destructive',
       });
     } finally {
@@ -170,8 +170,8 @@ export default function Auth() {
   const handleGoogleLogin = async () => {
     if (!turnstileToken) {
       toast({
-        title: 'Verificação necessária',
-        description: 'Complete a verificação de segurança antes de continuar.',
+        title: 'VerificaÃ§Ã£o necessÃ¡ria',
+        description: 'Complete a verificaÃ§Ã£o de seguranÃ§a antes de continuar.',
         variant: 'destructive',
       });
       return;
@@ -182,8 +182,8 @@ export default function Auth() {
       const isValid = await verifyTurnstile(turnstileToken);
       if (!isValid) {
         toast({
-          title: 'Verificação falhou',
-          description: 'A verificação de segurança falhou. Tente novamente.',
+          title: 'VerificaÃ§Ã£o falhou',
+          description: 'A verificaÃ§Ã£o de seguranÃ§a falhou. Tente novamente.',
           variant: 'destructive',
         });
         setTurnstileToken(null);
@@ -202,7 +202,7 @@ export default function Auth() {
     } catch (error: any) {
       toast({
         title: 'Erro',
-        description: error.message || 'Não foi possível conectar com o Google.',
+        description: error.message || 'NÃ£o foi possÃ­vel conectar com o Google.',
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -212,8 +212,8 @@ export default function Auth() {
   const handleSendPhoneOtp = async () => {
     if (!phoneNumber) {
       toast({
-        title: 'Telefone obrigatório',
-        description: 'Insira um número de telefone válido.',
+        title: 'Telefone obrigatÃ³rio',
+        description: 'Insira um nÃºmero de telefone vÃ¡lido.',
         variant: 'destructive',
       });
       return;
@@ -221,8 +221,8 @@ export default function Auth() {
 
     if (!turnstileToken) {
       toast({
-        title: 'Verificação necessária',
-        description: 'Complete a verificação de segurança antes de continuar.',
+        title: 'VerificaÃ§Ã£o necessÃ¡ria',
+        description: 'Complete a verificaÃ§Ã£o de seguranÃ§a antes de continuar.',
         variant: 'destructive',
       });
       return;
@@ -233,8 +233,8 @@ export default function Auth() {
       const isValid = await verifyTurnstile(turnstileToken);
       if (!isValid) {
         toast({
-          title: 'Verificação falhou',
-          description: 'A verificação de segurança falhou. Tente novamente.',
+          title: 'VerificaÃ§Ã£o falhou',
+          description: 'A verificaÃ§Ã£o de seguranÃ§a falhou. Tente novamente.',
           variant: 'destructive',
         });
         setTurnstileToken(null);
@@ -253,13 +253,13 @@ export default function Auth() {
 
       setOtpSent(true);
       toast({
-        title: 'Código enviado',
-        description: 'Verifique seu telefone e insira o código recebido.',
+        title: 'CÃ³digo enviado',
+        description: 'Verifique seu telefone e insira o cÃ³digo recebido.',
       });
     } catch (error: any) {
       toast({
         title: 'Erro',
-        description: error.message || 'Não foi possível enviar o código.',
+        description: error.message || 'NÃ£o foi possÃ­vel enviar o cÃ³digo.',
         variant: 'destructive',
       });
     } finally {
@@ -270,8 +270,8 @@ export default function Auth() {
   const handleVerifyPhoneOtp = async () => {
     if (!otp) {
       toast({
-        title: 'Código obrigatório',
-        description: 'Insira o código recebido por SMS.',
+        title: 'CÃ³digo obrigatÃ³rio',
+        description: 'Insira o cÃ³digo recebido por SMS.',
         variant: 'destructive',
       });
       return;
@@ -299,7 +299,7 @@ export default function Auth() {
     } catch (error: any) {
       toast({
         title: 'Erro',
-        description: error.message || 'Código inválido.',
+        description: error.message || 'CÃ³digo invÃ¡lido.',
         variant: 'destructive',
       });
     } finally {
@@ -401,7 +401,7 @@ export default function Auth() {
                       <Input
                         id="login-password"
                         type="password"
-                        placeholder="••••••••"
+                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -416,7 +416,7 @@ export default function Auth() {
                     
                     {turnstileError && (
                       <p className="text-sm text-destructive text-center">
-                        Erro na verificação. Recarregue a página e tente novamente.
+                        Erro na verificaÃ§Ã£o. Recarregue a pÃ¡gina e tente novamente.
                       </p>
                     )}
                     */}
@@ -424,7 +424,7 @@ export default function Auth() {
                     <Button 
                       type="submit" 
                       className="w-full" 
-                      disabled={isLoading || !turnstileToken}
+                      disabled={isLoading }
                     >
                       {isLoading ? (
                         <>
@@ -452,7 +452,7 @@ export default function Auth() {
 
                     {otpSent && (
                       <div className="space-y-2">
-                        <Label htmlFor="otp">Código de Verificação</Label>
+                        <Label htmlFor="otp">CÃ³digo de VerificaÃ§Ã£o</Label>
                         <Input
                           id="otp"
                           type="text"
@@ -473,7 +473,7 @@ export default function Auth() {
                     
                     {turnstileError && (
                       <p className="text-sm text-destructive text-center">
-                        Erro na verificação. Recarregue a página e tente novamente.
+                        Erro na verificaÃ§Ã£o. Recarregue a pÃ¡gina e tente novamente.
                       </p>
                     )}
                     */}
@@ -482,7 +482,7 @@ export default function Auth() {
                       <Button 
                         type="button"
                         className="w-full" 
-                        disabled={isLoading || !turnstileToken || !phoneNumber}
+                        disabled={isLoading  || !phoneNumber}
                         onClick={handleSendPhoneOtp}
                       >
                         {isLoading ? (
@@ -491,7 +491,7 @@ export default function Auth() {
                             Enviando...
                           </>
                         ) : (
-                          'Enviar Código SMS'
+                          'Enviar CÃ³digo SMS'
                         )}
                       </Button>
                     ) : (
@@ -508,7 +508,7 @@ export default function Auth() {
                               Verificando...
                             </>
                           ) : (
-                            'Verificar Código'
+                            'Verificar CÃ³digo'
                           )}
                         </Button>
                         <Button 
@@ -517,7 +517,7 @@ export default function Auth() {
                           className="w-full text-sm" 
                           onClick={() => setOtpSent(false)}
                         >
-                          Alterar número
+                          Alterar nÃºmero
                         </Button>
                       </div>
                     )}
@@ -535,7 +535,7 @@ export default function Auth() {
                   type="button"
                   variant="outline"
                   className="w-full"
-                  disabled={isLoading || !turnstileToken}
+                  disabled={isLoading }
                   onClick={handleGoogleLogin}
                 >
                   <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
@@ -590,7 +590,7 @@ export default function Auth() {
                   <Input
                     id="signup-password"
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -598,11 +598,11 @@ export default function Auth() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-seller-code">Código do Vendedor (opcional)</Label>
+                  <Label htmlFor="signup-seller-code">CÃ³digo do Vendedor (opcional)</Label>
                   <Input
                     id="signup-seller-code"
                     type="text"
-                    placeholder="Digite o código se tiver"
+                    placeholder="Digite o cÃ³digo se tiver"
                     value={sellerCode}
                     onChange={(e) => setSellerCode(e.target.value)}
                   />
@@ -616,7 +616,7 @@ export default function Auth() {
                 
                 {turnstileError && (
                   <p className="text-sm text-destructive text-center">
-                    Erro na verificação. Recarregue a página e tente novamente.
+                    Erro na verificaÃ§Ã£o. Recarregue a pÃ¡gina e tente novamente.
                   </p>
                 )}
                 */}
@@ -624,7 +624,7 @@ export default function Auth() {
                 <Button 
                   type="submit" 
                   className="w-full" 
-                  disabled={isLoading || !turnstileToken}
+                  disabled={isLoading }
                 >
                   {isLoading ? (
                     <>
@@ -636,7 +636,7 @@ export default function Auth() {
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Após o cadastro, sua conta precisará ser aprovada por um administrador.
+                  ApÃ³s o cadastro, sua conta precisarÃ¡ ser aprovada por um administrador.
                 </p>
 
                 <div className="relative my-4">
@@ -650,7 +650,7 @@ export default function Auth() {
                   type="button"
                   variant="outline"
                   className="w-full"
-                  disabled={isLoading || !turnstileToken}
+                  disabled={isLoading }
                   onClick={handleGoogleLogin}
                 >
                   <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">

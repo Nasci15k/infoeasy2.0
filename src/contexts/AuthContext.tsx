@@ -8,7 +8,7 @@ interface Profile {
   id: string;
   email: string;
   full_name: string | null;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'usuario' | 'usuario_premium' | 'revendedor' | 'teste';
   status: 'pending' | 'approved' | 'suspended';
   seller_code?: string | null;
   plan_type?: 'daily' | 'weekly' | 'monthly' | null;
