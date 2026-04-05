@@ -126,37 +126,61 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'images': { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="text-purple-600" /> },
       'personal': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
       'identificacao': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
+      'basicos': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
       'vacina': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="text-rose-600" /> },
       'saude': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
       'benefic': { label: 'BENEFÍCIOS SOCIAIS', icon: <Landmark className="text-amber-600" /> },
       'financeir': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
       'banco': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'cartao': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'pix': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
       'renda': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
       'salario': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
+      'aquisicao': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
+      'irpf': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
+      'receita': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="text-indigo-600" /> },
       'ender': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
       'localizac': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
+      'residente': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
       'parent': { label: 'VÍNCULOS FAMILIARES', icon: <Users className="text-pink-600" /> },
       'filiacao': { label: 'VÍNCULOS FAMILIARES', icon: <Users className="text-pink-600" /> },
       'certida': { label: 'CARTÓRIO E REGISTRO CIVIL', icon: <FileText className="text-slate-600" /> },
       'cartorio': { label: 'CARTÓRIO E REGISTRO CIVIL', icon: <FileText className="text-slate-600" /> },
-      'identifica': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
       'document': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
+      'cnh': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
+      'habilitacao': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
+      'ctps': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
+      'titulo': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
       'cedula': { label: 'HISTÓRICO DE CÉDULAS (RG)', icon: <FileBadge className="text-cyan-600" /> },
       'rfb': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="text-indigo-600" /> },
       'contat': { label: 'CANAIS DE CONTATO', icon: <Phone className="text-emerald-600" /> },
+      'email': { label: 'CANAIS DE CONTATO', icon: <Phone className="text-emerald-600" /> },
+      'telefone': { label: 'CANAIS DE CONTATO', icon: <Phone className="text-emerald-600" /> },
       'trabalh': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
       'empreg': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
+      'colegas': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
       'processo': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
+      'judicial': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
       'restricao': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
       'veicul': { label: 'VEÍCULOS E TRÂNSITO', icon: <Car className="text-slate-700" /> },
+      'detran': { label: 'VEÍCULOS E TRÂNSITO', icon: <Car className="text-slate-700" /> },
       'internet': { label: 'PRESENÇA DIGITAL', icon: <Globe className="text-sky-600" /> },
+      'digital': { label: 'PRESENÇA DIGITAL', icon: <Globe className="text-sky-600" /> },
+      'site': { label: 'PRESENÇA DIGITAL', icon: <Globe className="text-sky-600" /> },
       'consumo': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
       'interess': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
+      'compras': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
+      'mosaic': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
       'energia': { label: 'CONTAS DE ENERGIA', icon: <Zap className="text-yellow-600" /> },
       'antecedente': { label: 'ANTECEDENTES E REGISTROS', icon: <FileSearch className="text-red-800" /> },
+      'crimina': { label: 'ANTECEDENTES E REGISTROS', icon: <FileSearch className="text-red-800" /> },
       'mandado': { label: 'ANTECEDENTES E REGISTROS', icon: <AlertTriangle className="text-red-950" /> },
       'histori': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
-      'biometria': { label: 'DADOS BIOMÉTRICOS', icon: <Fingerprint className="text-blue-500" /> }
+      'moviment': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
+      'biometria': { label: 'DADOS BIOMÉTRICOS', icon: <Fingerprint className="text-blue-500" /> },
+      'escolar': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> },
+      'faculdade': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> },
+      'universit': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> }
     };
 
     for (const [keyWord, theme] of Object.entries(themes)) {
@@ -205,7 +229,13 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'PERFIL DE CONSUMO', 'VEÍCULOS E TRÂNSITO'
     ];
 
-    return Object.entries(categories)
+    const categoriesWithData = Object.entries(categories).filter(([_, cat]) => {
+      if (cat.data._images && cat.data._images.length > 0) return true;
+      const dataKeys = Object.keys(cat.data).filter(k => k !== '_images');
+      return dataKeys.length > 0;
+    });
+
+    return categoriesWithData
       .sort((a, b) => {
         const ax = order.indexOf(a[0]);
         const bx = order.indexOf(b[0]);
