@@ -34,10 +34,14 @@ SET row_security = off;
 -- Name: user_role; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.user_role AS ENUM (
-    'user',
-    'admin'
-);
+DO $$ BEGIN
+    CREATE TYPE public.user_role AS ENUM (
+        'user',
+        'admin'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 
 --

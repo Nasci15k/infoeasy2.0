@@ -61,82 +61,116 @@ serve(async (req) => {
       );
     }
 
-    // Determinar se é CPF ou CNPJ
-    const cleanValue = queryValue.replace(/\D/g, '');
-    const isCnpj = cleanValue.length === 14;
-    const isCpf = cleanValue.length === 11;
-    const queryParam = isCnpj ? 'cnpj' : (isCpf ? 'cpf' : 'doc');
+    // Processar o endpoint armazenado
+    const endpointStore = api.endpoint || '';
+    let apiUrl = '';
+    
+    // Pegar token puro passado (idealmente estaria no secrets do Supabase)
+    const TOKEN_PANEL = "PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk";
+    const TOKEN_DUALITY = "DUALITY-FREE";
 
-    // Construir URL da API substituindo {valor}
-    let apiUrl = api.endpoint
-      .replace('{valor}', encodeURIComponent(queryValue))
-      .replace('{ddd}', queryValue.substring(0, 2))
-      .replace('{telefone}', queryValue.substring(2));
+    const cleanValue = queryValue.replace(/\D/g, '');
+    const encodedValue = encodeURIComponent(queryValue);
+    
+    // Determinar se o endpoint segue a nova arquitetura com provider:*
+    if (endpointStore.startsWith('panel:')) {
+      const modulo = endpointStore.split(':')[1];
+      apiUrl = `http://45.190.208.48:7070/consulta?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
+    } else if (endpointStore.startsWith('brasilpro:')) {
+      const param = endpointStore.split(':')[1];
+      apiUrl = `http://apisbrasilpro.site/api/busca_${param}.php?${param}=${encodedValue}`;
+    } else if (endpointStore.startsWith('duality:')) {
+      const apiName = endpointStore.split(':')[1];
+      apiUrl = `https://duality.lat/?token=${TOKEN_DUALITY}&api=${apiName}&query=${cleanValue}`;
+    } else {
+      // Fallback para api antiga caso alguma escape
+      apiUrl = endpointStore
+        .replace('{valor}', encodedValue)
+        .replace('{ddd}', queryValue.substring(0, 2))
+        .replace('{telefone}', queryValue.substring(2));
+    }
     
     console.log('API Name:', api.name);
-    console.log('Initial URL:', apiUrl);
+    console.log('Fetching:', apiUrl.replace(TOKEN_PANEL, 'HIDDEN').replace(TOKEN_DUALITY, 'HIDDEN'));
 
-    // Se for API SPC, tentar múltiplas versões
     let responseData: any = null;
-    let lastError: any = null;
 
-    if (api.name.includes('SPC')) {
-      // Gerar URLs para SPC de 1 a 38
-      const spcVersions: string[] = [];
-      
-      // Base URL sem número
-      spcVersions.push(`https://apis-brasil.shop/apis/api${queryParam}spc.php?${queryParam}=${cleanValue}`);
-      
-      // URLs de 1 a 38
-      for (let i = 1; i <= 38; i++) {
-        spcVersions.push(`https://apis-brasil.shop/apis/api${queryParam}${i}spc.php?${queryParam}=${cleanValue}`);
+    try {
+      const response = await fetch(apiUrl, {
+        headers: { 
+          'User-Agent': 'Mozilla/5.0',
+          'Accept': 'application/json, text/plain, */*'
+        },
+        signal: AbortSignal.timeout(15000), // 15 segundos timeout
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`Servidor externo retornou status ${response.status}`);
       }
 
-      // Tentar cada versão em paralelo (lotes de 5)
-      const batchSize = 5;
-      for (let i = 0; i < spcVersions.length; i += batchSize) {
-        const batch = spcVersions.slice(i, i + batchSize);
-        
-        const results = await Promise.allSettled(
-          batch.map(async (testUrl) => {
-            console.log('Trying SPC version:', testUrl);
-            const response = await fetch(testUrl, {
-              headers: { 'User-Agent': 'Mozilla/5.0' },
-              signal: AbortSignal.timeout(8000),
-            });
+      const textData = await response.text();
+      
+      // Checar mensagens clássicas de erro de conexão SQL na ponta
+      if (textData.includes('no such table') || textData.includes('SQLSTATE') || textData.includes('General error') || textData.includes('Connection refused')) {
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: true,
+            message: 'O fornecedor da API está fora do ar ou com problemas temporários.',
+            api: api.name
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-            if (response.ok) {
-              const text = await response.text();
-              let data;
+      // Parser Resiliente JSON
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(textData);
+      } catch (e) {
+        const firstBrace = textData.indexOf('{');
+        const firstBracket = textData.indexOf('[');
+        const startIndex = firstBrace !== -1 && firstBracket !== -1 
+          ? Math.min(firstBrace, firstBracket) 
+          : Math.max(firstBrace, firstBracket);
+          
+        if (startIndex !== -1) {
+          try {
+            parsed = JSON.parse(textData.slice(startIndex));
+          } catch (_) {
+            const lastBrace = textData.lastIndexOf('}');
+            const lastBracket = textData.lastIndexOf(']');
+            const endIndex = Math.max(lastBrace, lastBracket);
+            if (endIndex > startIndex) {
               try {
-                data = JSON.parse(text);
-              } catch {
-                const firstBrace = text.indexOf('{');
-                if (firstBrace !== -1) {
-                  data = JSON.parse(text.slice(firstBrace));
-                }
-              }
-              
-              if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-                // Verificar se não é erro da API externa
-                if (!data.erro && !data.error && !data.message?.toLowerCase().includes('erro')) {
-                  return data;
-                }
+                parsed = JSON.parse(textData.slice(startIndex, endIndex + 1));
+              } catch (_) {
+                parsed = null;
               }
             }
-            throw new Error('Invalid response');
-          })
-        );
-
-        for (const result of results) {
-          if (result.status === 'fulfilled' && result.value) {
-            responseData = result.value;
-            console.log('SPC Success!');
-            break;
           }
         }
+      }
 
-        if (responseData) break;
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.erro || parsed.error || (parsed.status === false && parsed.msg)) {
+          const errorMsg = parsed.msg || parsed.erro || parsed.error || parsed.message || 'Dados não encontrados no momento';
+          return new Response(
+            JSON.stringify({ 
+              success: false,
+              notFound: true,
+              message: typeof errorMsg === 'string' ? errorMsg : 'Nenhum dado encontrado para essa busca.',
+              api: api.name
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        if (Object.keys(parsed).length > 0) {
+          responseData = parsed;
+        }
       }
 
       if (!responseData) {
@@ -144,125 +178,29 @@ serve(async (req) => {
           JSON.stringify({ 
             success: false,
             notFound: true,
-            message: 'Nenhum dado foi encontrado para esta consulta no SPC.',
+            message: 'A fonte não retornou dados úteis (Retorno Vazio).',
             api: api.name
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-    } else {
-      // Fazer requisição normal para outras APIs
-      try {
-        console.log('Fetching:', apiUrl);
-        
-        const response = await fetch(apiUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          signal: AbortSignal.timeout(15000),
-        });
-
-        console.log('Response status:', response.status);
-
-        if (!response.ok) {
-          throw new Error(`API retornou status ${response.status}`);
-        }
-
-        const textData = await response.text();
-        console.log('Response length:', textData.length);
-
-        // Verificar se há erro de banco de dados externo
-        if (textData.includes('no such table') || textData.includes('SQLSTATE') || textData.includes('General error')) {
-          console.error('External API database error:', textData.substring(0, 500));
-          return new Response(
-            JSON.stringify({ 
-              success: false,
-              error: true,
-              message: 'A API externa está com problemas temporários. Tente novamente mais tarde.',
-              api: api.name
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Tentar parsear como JSON ignorando avisos iniciais
-        let parsed: any = null;
-        try {
-          parsed = JSON.parse(textData);
-        } catch (e) {
-          // Tentar encontrar JSON no meio do texto (remove avisos PHP)
-          const firstBrace = textData.indexOf('{');
-          const firstBracket = textData.indexOf('[');
-          const startIndex = firstBrace !== -1 && firstBracket !== -1 
-            ? Math.min(firstBrace, firstBracket) 
-            : Math.max(firstBrace, firstBracket);
-            
-          if (startIndex !== -1) {
-            try {
-              parsed = JSON.parse(textData.slice(startIndex));
-            } catch (_) {
-              // Tentar até a última chave/colchete
-              const lastBrace = textData.lastIndexOf('}');
-              const lastBracket = textData.lastIndexOf(']');
-              const endIndex = Math.max(lastBrace, lastBracket);
-              if (endIndex > startIndex) {
-                try {
-                  parsed = JSON.parse(textData.slice(startIndex, endIndex + 1));
-                } catch (_) {
-                  parsed = null;
-                }
-              }
-            }
-          }
-        }
-
-        if (parsed && typeof parsed === 'object') {
-          // Verificar se há erro no JSON
-          if (parsed.erro || parsed.error) {
-            const errorMsg = parsed.erro || parsed.error || parsed.message || 'Dados não encontrados';
-            return new Response(
-              JSON.stringify({ 
-                success: false,
-                notFound: true,
-                message: typeof errorMsg === 'string' ? errorMsg : 'Dados não encontrados',
-                api: api.name
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-          
-          if (Object.keys(parsed).length > 0) {
-            responseData = parsed;
-          }
-        }
-
-        if (!responseData) {
-          return new Response(
-            JSON.stringify({ 
-              success: false,
-              notFound: true,
-              message: 'Nenhum dado foi encontrado para esta consulta.',
-              api: api.name
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      } catch (fetchError) {
-        console.error('Fetch error:', fetchError);
-        const errorMsg = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
-        
-        if (errorMsg.includes('timeout') || errorMsg.includes('AbortError')) {
-          return new Response(
-            JSON.stringify({ 
-              success: false,
-              error: true,
-              message: 'A API demorou muito para responder. Tente novamente.',
-              api: api.name
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        throw fetchError;
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      const errorMsg = fetchError instanceof Error ? fetchError.message : 'Erro desconhecido';
+      
+      if (errorMsg.includes('timeout') || errorMsg.includes('AbortError')) {
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: true,
+            message: 'A consulta demorou muito e excedeu o tempo limite. Tente novamente.',
+            api: api.name
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+      
+      throw fetchError;
     }
 
     // Filtrar mensagens contendo "astra" (case insensitive)

@@ -34,18 +34,29 @@ Deno.serve(async (req) => {
       let errorMsg = null;
 
       try {
-        // Fazer request HEAD para verificar se o endpoint responde
+        let testUrl = api.endpoint;
+        
+        // Interpretar arquitetura de providers para montar um ping real (ou usar uma base comum do provedor)
+        if (testUrl.startsWith('panel:')) {
+          testUrl = 'http://45.190.208.48:7070/';
+        } else if (testUrl.startsWith('brasilpro:')) {
+          testUrl = 'http://apisbrasilpro.site/';
+        } else if (testUrl.startsWith('duality:')) {
+          testUrl = 'https://duality.lat/';
+        }
+
+        // Fazer request GET na raiz para verificar se o endpoint/provedor responde
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
-        const response = await fetch(api.endpoint, {
-          method: 'HEAD',
+        const response = await fetch(testUrl, {
+          method: 'GET',
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
         responseTime = Date.now() - startTime;
-        isOnline = response.status < 500; // Considerar online se não for erro 5xx
+        isOnline = response.status < 500; // Considerar online se não for erro 5xx (mesmo 404/401 indica que server ta up)
       } catch (error: any) {
         errorMsg = error.message;
         responseTime = Date.now() - startTime;

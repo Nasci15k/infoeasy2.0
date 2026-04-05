@@ -133,6 +133,11 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       other: { label: 'Outras Informações', icon: '📋', fields: [] },
     };
 
+    if (!obj || typeof obj !== 'object') {
+      categories.other.fields.push(['Resposta', obj]);
+      return Object.entries(categories).filter(([_, cat]) => cat.fields.length > 0);
+    }
+
     const entries = Object.entries(obj).filter(([key]) => key !== 'raw' && key !== 'message');
 
     entries.forEach(([key, value]) => {
