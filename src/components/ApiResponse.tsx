@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Check, Download, ChevronDown, ChevronUp, Image as ImageIcon, User, MapPin, Phone, CreditCard, FileText, Briefcase, Heart, Info, Users, Activity, ShieldCheck, Printer, Syringe, Landmark, Stethoscope, Scale, Globe, GraduationCap, Car, ShoppingCart, Zap, FileSearch, History, UserCheck, AlertTriangle } from 'lucide-react';
+import { Copy, Check, Download, ChevronDown, ChevronUp, Image as ImageIcon, User, MapPin, Phone, CreditCard, FileText, Briefcase, Heart, Info, Users, Activity, ShieldCheck, Printer, Syringe, Landmark, Stethoscope, Scale, Globe, GraduationCap, Car, ShoppingCart, Zap, FileSearch, History, UserCheck, AlertTriangle, Fingerprint, FileBadge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ImageDisplay } from '@/components/ImageDisplay';
 import { useState, useMemo } from 'react';
@@ -16,7 +16,7 @@ interface ApiResponseProps {
 export function ApiResponse({ data, apiName }: ApiResponseProps) {
   const { toast } = useToast();
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['personal', 'images', 'documents', 'relationship', 'address']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['IDENTIFICAÇÃO PRINCIPAL', 'GALERIA DE FOTOS', 'DOCUMENTAÇÃO OFICIAL', 'LOCALIZAÇÃO / ENDEREÇOS']));
 
   const copyToClipboard = (text: string, field: string) => {
     if (!text) return;
@@ -31,8 +31,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
            (value.length > 200 && /^[A-Za-z0-9+/=]+$/.test(value.substring(0, 100)));
   };
 
-  // Helper to find all images with context (Name - Relationship)
-  const findImagesWithContext = (obj: any, parentKey = '', context: any = {}): { key: string; value: string; label: string }[] => {
+  const findImagesWithContext = (obj: any, context: any = {}): { key: string; value: string; label: string }[] => {
     let images: { key: string; value: string; label: string }[] = [];
     if (!obj || typeof obj !== 'object') return images;
 
@@ -43,9 +42,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     }
 
     if (Array.isArray(obj)) {
-      obj.forEach((item, index) => {
-        images = [...images, ...findImagesWithContext(item, parentKey || `Item ${index + 1}`, currentContext)];
-      });
+      obj.forEach((item) => images = [...images, ...findImagesWithContext(item, currentContext)]);
     } else {
       for (const [key, value] of Object.entries(obj)) {
         if (isBase64Image(value) || (typeof value === 'string' && value.startsWith('http'))) {
@@ -53,9 +50,9 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
           if (currentContext.name) parts.push(String(currentContext.name).toUpperCase());
           if (currentContext.rel) parts.push(String(currentContext.rel).toUpperCase());
           let label = parts.length > 0 ? parts.join(' - ') : key;
-          images.push({ key, value: value as string, label: String(label) });
+          images.push({ key, value: String(value), label: String(label) });
         } else if (typeof value === 'object') {
-          images = [...images, ...findImagesWithContext(value, key, currentContext)];
+          images = [...images, ...findImagesWithContext(value, currentContext)];
         }
       }
     }
@@ -74,8 +71,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
 
       const entries = Object.entries(obj);
       const containerEntry = entries.find(([k]) => ['data', 'dados', 'content', 'resultado', 'payload'].includes(k.toLowerCase()));
-      // Se o container tem muitos dados (unwrapping profundo), mergulhamos
-      if (entries.length <= 6 && containerEntry) return unwrap(containerEntry[1]);
+      if (entries.length <= 8 && containerEntry) return unwrap(containerEntry[1]);
       return obj;
     };
 
@@ -87,22 +83,21 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (v === null || v === undefined) return false;
     if (typeof v === 'string') {
       const low = v.toLowerCase().trim();
-      return !(low === '' || low === 'não informado' || low === '---' || low === 'não encontrado' || low === 'não' || low === 'undefined' || low === 'false');
+      // O usuário quer 100% dos dados, então mostramos quase tudo
+      return !(low === '' || low === 'undefined');
     }
-    if (Array.isArray(v)) return v.length > 0;
-    if (typeof v === 'object') return Object.keys(v).length > 0;
+    if (Array.isArray(v)) return true; // Mesmo listas vazias se quiser fidelidade total
     return true;
   };
 
   const formatFieldName = (key: string): string => {
     const specials: Record<string, string> = {
       'cns': 'CNS', 'cpf': 'CPF', 'cnpj': 'CNPJ', 'rg': 'RG', 'uf': 'UF', 'pis': 'PIS', 'cep': 'CEP',
-      'mae': 'Mãe', 'pai': 'Pai', 'nasc': 'Nascimento', 'dataNasc': 'D. Nasc.', 'social': 'Nome Social',
-      'situacao': 'Situação', 'logradouro': 'Rua/Av', 'bairro': 'Bairro', 'cidade': 'Cidade', 'municipio': 'Cidade',
-      'ddd': 'DDD', 'celular': 'Celular', 'email': 'E-mail', 'vinculo': 'Vínculo', 'sexo': 'Gênero'
+      'mae': 'Mãe', 'pai': 'Pai', 'nasc': 'Nascimento', 'social': 'Nome Social', 'ddd': 'DDD', 'vinculo': 'Vínculo',
+      'sexo': 'Sexo', 'logradouro': 'Endereço', 'obito': 'Óbito', 'situacao': 'Situação', 'restricao': 'Restrição Judicial',
+      'nacionalidade': 'Nacionalidade', 'naturalidade': 'Naturalidade', 'idade': 'Idade', 'profissao': 'Profissão'
     };
     const cleanKey = key.split(' > ').pop() || key;
-    if (specials[cleanKey]) return specials[cleanKey];
     if (specials[cleanKey.toLowerCase()]) return specials[cleanKey.toLowerCase()];
     return cleanKey.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()
       .split(' ')
@@ -114,78 +109,147 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
     if (v === 'F' || v === 'f') return 'Feminino';
     if (v === 'M' || v === 'm') return 'Masculino';
+    if (!v || String(v).toLowerCase().trim() === 'nan') return 'Não Informado';
     return String(v);
   };
 
-  const toggleSection = (sectionKey: string) => {
+  const toggleSection = (sectionLabel: string) => {
     const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(sectionKey)) newExpanded.delete(sectionKey);
-    else newExpanded.add(sectionKey);
+    if (newExpanded.has(sectionLabel)) newExpanded.delete(sectionLabel);
+    else newExpanded.add(sectionLabel);
     setExpandedSections(newExpanded);
   };
 
-  const downloadAsTxt = () => {
-    const buildString = (obj: any, indent = ''): string => {
-      let str = '';
-      if (!obj || typeof obj !== 'object') return isValidValue(obj) ? String(obj) + '\n' : '';
-      for (const [key, value] of Object.entries(obj)) {
-        if (key === '_metadata' || key === 'raw' || isBase64Image(value) || !isValidValue(value)) continue;
-        if (Array.isArray(value)) {
-          str += `${indent}${formatFieldName(key)}:\n`;
-          value.forEach((v, i) => { str += `${indent}  #${i + 1}:\n${buildString(v, indent + '    ')}`; });
-        } else if (typeof value === 'object' && value !== null) {
-          str += `${indent}${formatFieldName(key)}:\n${buildString(value, indent + '  ')}`;
-        } else {
-          str += `${indent}${formatFieldName(key)}: ${renderValue(value)}\n`;
-        }
-      }
-      return str;
+  const getCategoryTheme = (key: string) => {
+    const k = key.toLowerCase();
+    const themes: Record<string, { label: string; icon: any }> = {
+      'images': { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="text-purple-600" /> },
+      'personal': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
+      'identificacao': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
+      'vacina': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="text-rose-600" /> },
+      'saude': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
+      'benefic': { label: 'BENEFÍCIOS SOCIAIS', icon: <Landmark className="text-amber-600" /> },
+      'financeir': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'banco': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'renda': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
+      'salario': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
+      'ender': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
+      'localizac': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
+      'parent': { label: 'VÍNCULOS FAMILIARES', icon: <Users className="text-pink-600" /> },
+      'filiacao': { label: 'VÍNCULOS FAMILIARES', icon: <Users className="text-pink-600" /> },
+      'certida': { label: 'CARTÓRIO E REGISTRO CIVIL', icon: <FileText className="text-slate-600" /> },
+      'cartorio': { label: 'CARTÓRIO E REGISTRO CIVIL', icon: <FileText className="text-slate-600" /> },
+      'identifica': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
+      'document': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
+      'cedula': { label: 'HISTÓRICO DE CÉDULAS (RG)', icon: <FileBadge className="text-cyan-600" /> },
+      'rfb': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="text-indigo-600" /> },
+      'contat': { label: 'CANAIS DE CONTATO', icon: <Phone className="text-emerald-600" /> },
+      'trabalh': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
+      'empreg': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
+      'processo': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
+      'restricao': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
+      'veicul': { label: 'VEÍCULOS E TRÂNSITO', icon: <Car className="text-slate-700" /> },
+      'internet': { label: 'PRESENÇA DIGITAL', icon: <Globe className="text-sky-600" /> },
+      'consumo': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
+      'interess': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
+      'energia': { label: 'CONTAS DE ENERGIA', icon: <Zap className="text-yellow-600" /> },
+      'antecedente': { label: 'ANTECEDENTES E REGISTROS', icon: <FileSearch className="text-red-800" /> },
+      'mandado': { label: 'ANTECEDENTES E REGISTROS', icon: <AlertTriangle className="text-red-950" /> },
+      'histori': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
+      'biometria': { label: 'DADOS BIOMÉTRICOS', icon: <Fingerprint className="text-blue-500" /> }
     };
-    const reportContent = `=== INFOEASY 2.0 - RELATÓRIO OFICIAL ===\nAPI: ${apiName.toUpperCase()}\nDATA: ${new Date().toLocaleString('pt-BR')}\n========================================\n\n${buildString(displayData)}`;
-    const blob = new Blob([reportContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Consulta_${apiName}_${Date.now()}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
+
+    for (const [keyWord, theme] of Object.entries(themes)) {
+      if (k.includes(keyWord)) return theme;
+    }
+    return { label: 'OUTROS REGISTROS ENCONTRADOS', icon: <Info className="text-slate-400" /> };
   };
 
-  const renderEntriesRecursive = (obj: any, depth = 0): JSX.Element | null => {
+  const catData = useMemo(() => {
+    if (!displayData) return [];
+    
+    // Grouping by label to eliminate duplicates
+    const categories: Record<string, { label: string; icon: any; data: any }> = {};
+
+    const images = findImagesWithContext(displayData);
+    if (images.length > 0) {
+       categories['GALERIA DE FOTOS'] = { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5 text-purple-600" />, data: { _images: images } };
+    }
+
+    const process = (obj: any) => {
+      Object.entries(obj).forEach(([key, value]) => {
+        if (key === '_metadata' || key === 'raw' || isBase64Image(value) || !isValidValue(value)) return;
+        
+        const theme = getCategoryTheme(key);
+        const label = theme.label;
+
+        if (!categories[label]) {
+            categories[label] = { label, icon: theme.icon, data: {} };
+        }
+        
+        // If it's pure data at this level, or nested, store it
+        categories[label].data[key] = value;
+      });
+    };
+
+    process(displayData);
+
+    // Order
+    const order = [
+      'GALERIA DE FOTOS', 'IDENTIFICAÇÃO PRINCIPAL', 'HISTÓRICO REGISTRADO', 'DADOS BIOMÉTRICOS', 
+      'SITUAÇÃO NA RECEITA FEDERAL', 'VÍNCULOS FAMILIARES', 'LOCALIZAÇÃO / ENDEREÇOS', 
+      'CANAIS DE CONTATO', 'DOCUMENTAÇÃO OFICIAL', 'HISTÓRICO DE CÉDULAS (RG)', 
+      'CARTÓRIO E REGISTRO CIVIL', 'DIREITO E PROCESSOS', 'ANTECEDENTES E REGISTROS',
+      'SAÚDE E VACINAÇÃO', 'SAÚDE E ASSISTÊNCIA', 'FINANÇAS E BANCÁRIO', 
+      'RENDA E PATRIMÔNIO', 'BENEFÍCIOS SOCIAIS', 'HISTÓRICO PROFISSIONAL',
+      'PERFIL DE CONSUMO', 'VEÍCULOS E TRÂNSITO'
+    ];
+
+    return Object.entries(categories)
+      .sort((a, b) => {
+        const ax = order.indexOf(a[0]);
+        const bx = order.indexOf(b[0]);
+        return (ax === -1 ? 99 : ax) - (bx === -1 ? 99 : bx);
+      });
+  }, [displayData]);
+
+  const renderRecursive = (obj: any, depth = 0): JSX.Element | null => {
     if (!obj || typeof obj !== 'object') return null;
-    const entries = Object.entries(obj).filter(([k, v]) => k !== '_metadata' && k !== 'raw' && k !== 'base64' && !isBase64Image(v) && isValidValue(v));
+    const entries = Object.entries(obj).filter(([k, v]) => k !== '_images' && !isBase64Image(v));
     if (entries.length === 0) return null;
 
     return (
-      <div className={cn("grid gap-4", depth === 0 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 mt-3 ml-2 pl-4 border-l-2 border-slate-100")}>
+      <div className={cn("grid gap-y-1 gap-x-4", depth === 0 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1 border-l border-slate-100 ml-2 pl-4 py-1")}>
         {entries.map(([key, value]) => {
           const isObj = typeof value === 'object' && value !== null;
           const isArr = Array.isArray(value);
 
           return (
-            <div key={key} className={cn("flex flex-col gap-1 group/field pb-2 border-b border-slate-50 last:border-0", (isObj || isArr || String(value).length > 50) && "md:col-span-2 lg:col-span-2")}>
-              <div className="flex items-center gap-2">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{formatFieldName(key)}</span>
-                 {!isObj && !isArr && (
-                   <Button variant="ghost" size="sm" className="h-4 w-4 p-0 opacity-0 group-hover/field:opacity-100" onClick={() => copyToClipboard(String(value), key)}>
-                     <Copy className="h-2.5 w-2.5 text-slate-300" />
-                   </Button>
-                 )}
+            <div key={key} className={cn("flex items-baseline py-1.5 border-b border-slate-50 last:border-0", (isObj || isArr || String(value).length > 40) && "md:col-span-2 lg:col-span-2")}>
+              <div className="min-w-[120px] text-[11px] font-bold text-slate-500 uppercase tracking-tighter mr-3">
+                {formatFieldName(key)}
               </div>
-              {!isObj && !isArr ? (
-                <div className="text-[13px] font-bold text-slate-800 break-words line-clamp-3">{renderValue(value)}</div>
-              ) : isArr ? (
-                <div className="space-y-3 mt-2">
-                  {value.map((item: any, i: number) => (
-                    <div key={i} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 relative pt-7">
-                      <div className="absolute top-2 left-3 px-2 py-0.5 bg-slate-200 text-[8px] font-black text-slate-500 rounded-full uppercase">Registro #{i+1}</div>
-                      {typeof item === 'object' ? renderEntriesRecursive(item, depth + 1) : <span className="text-xs font-bold text-slate-700">{renderValue(item)}</span>}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                renderEntriesRecursive(value, depth + 1)
-              )}
+              <div className="flex-1">
+                {!isObj && !isArr ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-black text-slate-900 break-words">{renderValue(value)}</span>
+                    <Button variant="ghost" size="sm" className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100" onClick={() => copyToClipboard(String(value), key)}>
+                      <Copy className="h-2.5 w-2.5 text-slate-300" />
+                    </Button>
+                  </div>
+                ) : isArr ? (
+                  <div className="space-y-4 mt-2">
+                    {value.map((item: any, i: number) => (
+                      <div key={i} className="bg-slate-50 p-4 rounded-xl border border-slate-100 relative mb-4">
+                        <div className="absolute -top-2 left-2 px-2 py-0.5 bg-slate-200 text-[8px] font-black text-slate-600 rounded uppercase">Item #{i+1}</div>
+                        {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-xs font-bold text-slate-800">{renderValue(item)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  renderRecursive(value, depth + 1)
+                )}
+              </div>
             </div>
           );
         })}
@@ -193,182 +257,98 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     );
   };
 
-  const getCategoryTheme = (key: string) => {
-    const k = key.toLowerCase();
-    const map: Record<string, { label: string; icon: any }> = {
-      'personal': { label: 'Dados de Identificação', icon: <User className="text-blue-500" /> },
-      'images': { label: 'Galeria de Fotos', icon: <ImageIcon className="text-purple-500" /> },
-      'vacinas': { label: 'Vacinação (SUS)', icon: <Syringe className="text-rose-500" /> },
-      'beneficos': { label: 'Benefícios Sociais', icon: <Landmark className="text-amber-500" /> },
-      'bolsafamilia': { label: 'Bolsa Família', icon: <Landmark className="text-orange-500" /> },
-      'enderecos': { label: 'Localização / Endereços', icon: <MapPin className="text-red-500" /> },
-      'parentes': { label: 'Vínculos Familiares', icon: <Users className="text-pink-500" /> },
-      'filiacao': { label: 'Dados de Filiação', icon: <Users className="text-indigo-500" /> },
-      'certidoes': { label: 'Cartório / Registros Civil', icon: <FileText className="text-slate-500" /> },
-      'documents': { label: 'Documentação Oficial', icon: <ShieldCheck className="text-emerald-500" /> },
-      'cedulas': { label: 'Histórico de Cédulas (RG)', icon: <IdCard className="text-cyan-500" /> },
-      'situacaocadastral': { label: 'Situação na RFB', icon: <UserCheck className="text-blue-600" /> },
-      'contatos': { label: 'Canais de Contato', icon: <Phone className="text-green-500" /> },
-      'trabalho': { label: 'Vida Profissional', icon: <Briefcase className="text-slate-700" /> },
-      'saude': { label: 'Saúde e Assistência', icon: <Heart className="text-rose-400" /> },
-      'processos': { label: 'Processos Judiciais', icon: <Scale className="text-slate-900" /> },
-      'escolaridade': { label: 'Educação / Escolas', icon: <GraduationCap className="text-blue-400" /> },
-      'veiculos': { label: 'Veículos / Trânsito', icon: <Car className="text-slate-600" /> },
-      'internet': { label: 'Presença Digital', icon: <Globe className="text-sky-500" /> },
-      'consumo': { label: 'Perfil de Consumo', icon: <ShoppingCart className="text-orange-400" /> },
-      'energia': { label: 'Contas de Energia', icon: <Zap className="text-yellow-500" /> },
-      'antecedentes': { label: 'Antecedentes Criminais', icon: <AlertTriangle className="text-red-700" /> },
-      'mandados': { label: 'Mandados de Prisão', icon: <AlertTriangle className="text-red-900" /> },
-      'historico': { label: 'Histórico Registrado', icon: <History className="text-slate-400" /> },
-      'busca': { label: 'Registros de Busca', icon: <FileSearch className="text-slate-500" /> }
-    };
-
-    // Smart lookup by keyword
-    for (const [keyWord, theme] of Object.entries(map)) {
-      if (k.includes(keyWord)) return theme;
-    }
-    return null;
-  };
-
-  const catData = useMemo(() => {
-    if (!displayData) return [];
-    const categories: Record<string, { label: string; icon: any; data: any }> = {
-      images: { label: 'Galeria de Fotos', icon: <ImageIcon className="h-5 w-5 text-purple-500" />, data: [] },
-      personal: { label: 'Identificação Principal', icon: <User className="h-5 w-5 text-blue-500" />, data: {} }
-    };
-
-    categories.images.data = findImagesWithContext(displayData);
-
-    const process = (obj: any) => {
-      Object.entries(obj).forEach(([key, value]) => {
-        if (key === '_metadata' || key === 'raw' || isBase64Image(value) || !isValidValue(value)) return;
-        
-        const theme = getCategoryTheme(key);
-        if (theme) {
-          const catId = key.toLowerCase();
-          if (!categories[catId]) {
-            categories[catId] = { label: theme.label, icon: theme.icon, data: {} };
-          }
-          categories[catId].data[key] = value;
+  const downloadAsTxt = () => {
+    const build = (obj: any, indent = ''): string => {
+      let str = '';
+      if (!obj || typeof obj !== 'object') return isValidValue(obj) ? String(obj) : '';
+      for (const [key, value] of Object.entries(obj)) {
+        if (key === '_metadata' || isBase64Image(value)) continue;
+        if (Array.isArray(value)) {
+          str += `${indent}${formatFieldName(key).toUpperCase()}:\n`;
+          value.forEach((v, i) => { str += `${indent}  #${i + 1}:\n${build(v, indent + '    ')}\n`; });
         } else if (typeof value === 'object' && value !== null) {
-          // Se for um objeto sem categoria óbvia, mergulhamos
-          process(value);
+          str += `${indent}${formatFieldName(key).toUpperCase()}:\n${build(value, indent + '  ')}\n`;
         } else {
-          // Se for um dado solto, vai para Identificação se não tiver categoria
-          categories.personal.data[key] = value;
+          str += `${indent}${formatFieldName(key)}: ${renderValue(value)}\n`;
         }
-      });
+      }
+      return str;
     };
-
-    process(displayData);
-
-    // Clean empty categories and sort
-    return Object.entries(categories)
-      .filter(([_, c]) => (Array.isArray(c.data) ? c.data.length > 0 : Object.keys(c.data).length > 0))
-      .sort((a, b) => {
-        const order = ['images', 'personal', 'dadosbasicos', 'situacaocadastral', 'filiacao', 'enderecos', 'parentesnovos', 'contatos'];
-        const ax = order.indexOf(a[0]);
-        const bx = order.indexOf(b[0]);
-        return (ax === -1 ? 99 : ax) - (bx === -1 ? 99 : bx);
-      });
-  }, [displayData]);
+    const report = `=== RELATÓRIO OFICIAL INFOEASY 2.0 ===\nAPI: ${apiName.toUpperCase()}\nDATA: ${new Date().toLocaleString()}\n====================================\n\n${build(displayData)}`;
+    const blob = new Blob([report], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `Laudo_${apiName}_${Date.now()}.txt`; a.click();
+  };
 
   if (!displayData) return null;
 
   return (
-    <Card className="mt-8 border border-slate-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[2rem] overflow-hidden animate-in fade-in zoom-in-95 duration-500">
-      <CardHeader className="p-8 md:p-10 bg-slate-50/50 border-b border-slate-100">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="h-16 w-16 rounded-2xl bg-white flex items-center justify-center border border-slate-200 shadow-sm">
-              <ShieldCheck className="h-8 w-8 text-blue-600" />
+    <Card id="relatorio-master" className="mt-8 border border-slate-200 bg-white shadow-xl rounded-[2.5rem] overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-700">
+      <CardHeader className="p-8 md:p-12 bg-slate-50 border-b border-slate-200">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+          <div className="flex items-center gap-6">
+            <div className="h-20 w-20 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center justify-center">
+              <ShieldCheck className="h-10 w-10 text-blue-800" />
             </div>
             <div>
-              <h2 className="text-2xl font-black tracking-tight text-slate-800 uppercase">Relatório Consolidado</h2>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <Badge className="bg-blue-600 text-white border-none rounded-md font-bold text-[9px] px-2 py-0.5">{apiName}</Badge>
-                {displayData._metadata?.cached_at && (
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{displayData._metadata.cached_at}</span>
-                )}
+              <h2 className="text-3xl font-black text-slate-950 tracking-tighter uppercase mb-1">Dossiê de Inteligência</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="bg-slate-900 text-white border-none py-1 px-3 text-[10px] font-black">{apiName}</Badge>
+                {displayData._metadata?.cached_at && <span className="text-[10px] font-bold text-slate-400 uppercase">{displayData._metadata.cached_at}</span>}
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={downloadAsTxt} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase tracking-widest px-6 h-10 rounded-xl gap-2">
-              <Download className="h-4 w-4" /> Relatório TXT
+          <div className="flex gap-3 w-full md:w-auto">
+            <Button onClick={downloadAsTxt} className="h-12 flex-1 md:flex-none px-6 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] uppercase tracking-widest gap-2 transition-transform active:scale-95 shadow-md">
+              <Download className="h-4 w-4" /> Baixar Dossiê (TXT)
             </Button>
-            <Button variant="ghost" onClick={() => window.print()} className="text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest gap-2">
-              <Printer className="h-4 w-4" /> Imprimir
+            <Button variant="outline" onClick={() => window.print()} className="h-12 w-12 md:w-auto md:px-6 rounded-2xl border-slate-200 hover:bg-slate-100 font-black text-[11px] uppercase tracking-widest gap-2">
+              <Printer className="h-4 w-4" /> <span className="hidden md:inline">Imprimir</span>
             </Button>
           </div>
         </div>
       </CardHeader>
       
-      <CardContent className="p-8 md:p-10 space-y-10">
-        {catData.map(([ck, cat]) => (
-          <Collapsible key={ck} open={expandedSections.has(ck)} onOpenChange={() => toggleSection(ck)} className="group/section">
+      <CardContent className="p-8 md:p-12 space-y-12">
+        {catData.map(([label, cat]) => (
+          <Collapsible key={label} open={expandedSections.has(label)} onOpenChange={() => toggleSection(label)} className="group space-y-4">
             <CollapsibleTrigger asChild>
-              <div className="flex items-center justify-between cursor-pointer py-2 group-hover/section:translate-x-1 transition-transform">
+              <div className="flex items-center justify-between cursor-pointer border-b border-slate-200 pb-4 group-hover:border-blue-300 transition-colors">
                 <div className="flex items-center gap-4">
-                   <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 group-hover/section:bg-white group-hover/section:shadow-sm transition-all">
+                   <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 group-hover:bg-blue-50 group-hover:border-blue-200 transition-all">
                      {cat.icon}
                    </div>
-                   <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">{cat.label}</h3>
+                   <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">{cat.label}</h3>
                 </div>
-                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center bg-slate-50 border border-slate-100", expandedSections.has(ck) && "bg-blue-50 border-blue-100")}>
-                  {expandedSections.has(ck) ? <ChevronUp className="h-4 w-4 text-blue-600" /> : <ChevronDown className="h-4 w-4 text-slate-300" />}
+                <div className={cn("h-10 w-10 rounded-full flex items-center justify-center bg-slate-50 border border-slate-200 transition-all", expandedSections.has(label) && "bg-blue-100 border-blue-200")}>
+                  {expandedSections.has(label) ? <ChevronUp className="h-5 w-5 text-blue-700" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
                 </div>
               </div>
             </CollapsibleTrigger>
             
-            <CollapsibleContent className="pt-4 px-2">
-              <div className="p-6 rounded-2xl bg-white border border-slate-100 shadow-sm">
-                {ck === 'images' ? (
+            <CollapsibleContent>
+              <div className="px-2 pt-2">
+                {label === 'GALERIA DE FOTOS' ? (
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                    {cat.data.map((img: any, i: number) => (
+                    {cat.data._images.map((img: any, i: number) => (
                       <div key={i} className="group/img space-y-3">
-                        <div className="aspect-[3/4] relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm transition-all duration-500 group-hover/img:shadow-md group-hover/img:-translate-y-1">
-                          <ImageDisplay imageData={isBase64Image(img.value) ? img.value : undefined} imageUrl={img.value.startsWith('http') ? img.value : undefined} name={img.label} />
+                        <div className="aspect-[3/4] relative rounded-[1.5rem] overflow-hidden border border-slate-200 bg-slate-100 shadow-sm transition-all duration-700 group-hover/img:scale-105 group-hover/img:ring-4 ring-blue-50 group-hover/img:shadow-xl">
+                          <ImageDisplay imageData={img.value} name={img.label} />
                         </div>
-                        <div className="text-[9px] text-center font-bold text-slate-500 uppercase tracking-tighter truncate px-1">
+                        <div className="text-[10px] text-center font-black text-slate-500 uppercase leading-tight px-1">
                           {img.label}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  renderEntriesRecursive(cat.data)
+                  renderRecursive(cat.data)
                 )}
               </div>
             </CollapsibleContent>
-            <div className="h-px bg-slate-50 mt-10 w-full last:hidden" />
           </Collapsible>
         ))}
       </CardContent>
     </Card>
   );
-}
-
-function IdCard(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16 10h2" />
-      <path d="M16 14h2" />
-      <rect width="18" height="14" x="3" y="5" rx="2" />
-      <path d="M7 15h.01" />
-      <path d="M11 15h2" />
-      <path d="M8 11h2" />
-    </svg>
-  )
 }
