@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: infoeasy-backend
+    env: docker
+    region: oregon
+    plan: free
+    buildCommand: npm install -g supabase && supabase start
+    startCommand: supabase functions serve --env-file .env
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
