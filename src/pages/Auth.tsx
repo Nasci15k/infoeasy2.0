@@ -21,12 +21,14 @@ export default function Auth() {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>('bypassed'); // BYPASS TEMPORÁRIO
   const [turnstileError, setTurnstileError] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const verifyTurnstile = async (token: string): Promise<boolean> => {
+    return true; // Cloudflare removido temporariamente
+    
     if (token.startsWith('dev-mode-token-')) {
       return true;
     }
@@ -405,7 +407,7 @@ export default function Auth() {
                         required
                       />
                     </div>
-                    
+                    {/* Turnstile removido temporariamente
                     <TurnstileWidget
                       onVerify={handleTurnstileVerify}
                       onError={handleTurnstileError}
@@ -417,6 +419,7 @@ export default function Auth() {
                         Erro na verificação. Recarregue a página e tente novamente.
                       </p>
                     )}
+                    */}
                     
                     <Button 
                       type="submit" 
@@ -461,6 +464,7 @@ export default function Auth() {
                       </div>
                     )}
 
+                    {/* Turnstile removido temporariamente
                     <TurnstileWidget
                       onVerify={handleTurnstileVerify}
                       onError={handleTurnstileError}
@@ -472,6 +476,7 @@ export default function Auth() {
                         Erro na verificação. Recarregue a página e tente novamente.
                       </p>
                     )}
+                    */}
 
                     {!otpSent ? (
                       <Button 
@@ -602,7 +607,7 @@ export default function Auth() {
                     onChange={(e) => setSellerCode(e.target.value)}
                   />
                 </div>
-                
+                {/* Turnstile removido temporariamente
                 <TurnstileWidget
                   onVerify={handleTurnstileVerify}
                   onError={handleTurnstileError}
@@ -614,6 +619,7 @@ export default function Auth() {
                     Erro na verificação. Recarregue a página e tente novamente.
                   </p>
                 )}
+                */}
                 
                 <Button 
                   type="submit" 
