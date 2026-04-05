@@ -1,19 +1,25 @@
+import { useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { User } from 'lucide-react';
+import { User, AlertCircle, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ImageDisplayProps {
   imageUrl?: string;
   imageData?: string;
   name?: string;
+  className?: string;
 }
 
-export function ImageDisplay({ imageUrl, imageData, name }: ImageDisplayProps) {
+export function ImageDisplay({ imageUrl, imageData, name, className }: ImageDisplayProps) {
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
   const getSrc = () => {
     if (imageData) {
-      // Se for base64, verificar se já tem o prefixo
       if (imageData.startsWith('data:image')) {
         return imageData;
       }
+      // Automagicamente detecta se é JPEG ou PNG (padrão JPEG se não especificado)
       return `data:image/jpeg;base64,${imageData}`;
     }
     return imageUrl;
@@ -21,34 +27,53 @@ export function ImageDisplay({ imageUrl, imageData, name }: ImageDisplayProps) {
 
   const src = getSrc();
 
-  if (!src) {
+  if (!src || error) {
     return (
-      <Card className="p-8 flex items-center justify-center bg-muted">
-        <div className="text-center">
-          <User className="h-20 w-20 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">Foto não disponível</p>
-        </div>
-      </Card>
+      <div className={cn(
+        "flex flex-col items-center justify-center bg-muted/30 border-2 border-dashed border-border/50 rounded-xl p-4 text-center aspect-square transition-all duration-300",
+        className
+      )}>
+        {error ? (
+          <>
+            <AlertCircle className="h-8 w-8 text-destructive/50 mb-2" />
+            <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">Erro ao carregar</p>
+          </>
+        ) : (
+          <>
+            <User className="h-10 w-10 text-muted-foreground/30 mb-2" />
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Sem Imagem</p>
+          </>
+        )}
+      </div>
     );
   }
 
   return (
-    <Card className="overflow-hidden">
+    <div className={cn(
+      "relative group overflow-hidden rounded-xl bg-muted shadow-sm border border-border/30 aspect-square transition-all duration-500",
+      className
+    )}>
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted animate-pulse">
+          <Loader2 className="h-5 w-5 text-primary/30 animate-spin" />
+        </div>
+      )}
       <img
         src={src}
         alt={name || 'Foto'}
-        className="w-full h-auto object-cover"
-        onError={(e) => {
-          e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement!.innerHTML = `
-            <div class="p-8 flex items-center justify-center bg-muted">
-              <div class="text-center">
-                <p class="text-sm text-muted-foreground">Erro ao carregar imagem</p>
-              </div>
-            </div>
-          `;
+        className={cn(
+          "w-full h-full object-cover transition-transform duration-700 group-hover:scale-110",
+          loading ? "opacity-0" : "opacity-100"
+        )}
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          setError(true);
+          setLoading(false);
         }}
       />
-    </Card>
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+        <p className="text-[9px] text-white font-bold truncate uppercase">{name || 'Foto'}</p>
+      </div>
+    </div>
   );
 }

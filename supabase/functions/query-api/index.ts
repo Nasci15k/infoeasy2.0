@@ -203,25 +203,38 @@ serve(async (req) => {
       throw fetchError;
     }
 
-    // Filtrar mensagens contendo "astra" (case insensitive)
-    const filterAstra = (obj: any): any => {
+    // Sanitização de dados (Filtrar "astra" e metadados sensíveis do provedor)
+    const sanitizeData = (obj: any): any => {
+      const BLACK_LIST = [
+        'consumo_hoje', 'reset_em', 'total_diario', 'limites', 
+        'protocolo', 'sucesso', 'usuario', 'conta', 'success',
+        'token', 'key', 'apikey', 'auth'
+      ];
+
       if (typeof obj === 'string') {
         return obj.replace(/astra/gi, '[FILTRADO]');
       }
+      
       if (Array.isArray(obj)) {
-        return obj.map(filterAstra);
+        return obj.map(sanitizeData);
       }
+      
       if (obj && typeof obj === 'object') {
         const filtered: any = {};
         for (const [key, value] of Object.entries(obj)) {
-          filtered[key] = filterAstra(value);
+          const lowerKey = key.toLowerCase();
+          // Pular se a chave estiver na lista negra ou contiver termos sensíveis
+          if (BLACK_LIST.some(item => lowerKey === item || lowerKey.includes('token') || lowerKey.includes('apikey'))) {
+            continue;
+          }
+          filtered[key] = sanitizeData(value);
         }
         return filtered;
       }
       return obj;
     };
 
-    const filteredData = filterAstra(responseData);
+    const filteredData = sanitizeData(responseData);
 
     // Salvar no histórico
     await supabaseClient.from('query_history').insert({
