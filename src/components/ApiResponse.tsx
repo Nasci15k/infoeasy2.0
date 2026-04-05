@@ -83,10 +83,9 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (v === null || v === undefined) return false;
     if (typeof v === 'string') {
       const low = v.toLowerCase().trim();
-      // O usuário quer 100% dos dados, então mostramos quase tudo
       return !(low === '' || low === 'undefined');
     }
-    if (Array.isArray(v)) return true; // Mesmo listas vazias se quiser fidelidade total
+    if (Array.isArray(v)) return true;
     return true;
   };
 
@@ -109,7 +108,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
     if (v === 'F' || v === 'f') return 'Feminino';
     if (v === 'M' || v === 'm') return 'Masculino';
-    if (!v || String(v).toLowerCase().trim() === 'nan') return 'Não Informado';
+    if (!v || String(v).toLowerCase().trim() === 'nan' || String(v).toLowerCase().trim() === 'null' || String(v).toLowerCase().trim() === 'não informado') return 'Sem / Não Encontrado';
     return String(v);
   };
 
@@ -129,15 +128,27 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'basicos': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
       'vacina': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="text-rose-600" /> },
       'saude': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
+      'doenca': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
+      'deficiencia': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
+      'prontuario': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
       'benefic': { label: 'BENEFÍCIOS SOCIAIS', icon: <Landmark className="text-amber-600" /> },
       'financeir': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
       'banco': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
       'cartao': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
       'pix': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'cheque': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'conta': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'divida': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'bacen': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'emprestim': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'fgts': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
+      'previdenc': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
       'renda': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
       'salario': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
       'aquisicao': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
       'irpf': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
+      'poder_aquisitivo': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
+      'imoveis': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
       'receita': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="text-indigo-600" /> },
       'ender': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
       'localizac': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
@@ -151,6 +162,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'habilitacao': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
       'ctps': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
       'titulo': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
+      'alistamento': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
       'cedula': { label: 'HISTÓRICO DE CÉDULAS (RG)', icon: <FileBadge className="text-cyan-600" /> },
       'rfb': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="text-indigo-600" /> },
       'contat': { label: 'CANAIS DE CONTATO', icon: <Phone className="text-emerald-600" /> },
@@ -159,6 +171,10 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'trabalh': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
       'empreg': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
       'colegas': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
+      'curriculo': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
+      'conselho': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
+      'empresa': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="text-blue-900" /> },
+      'socio': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="text-blue-900" /> },
       'processo': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
       'judicial': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
       'restricao': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
@@ -171,16 +187,21 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'interess': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
       'compras': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
       'mosaic': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
+      'opiniao': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
       'energia': { label: 'CONTAS DE ENERGIA', icon: <Zap className="text-yellow-600" /> },
       'antecedente': { label: 'ANTECEDENTES E REGISTROS', icon: <FileSearch className="text-red-800" /> },
       'crimina': { label: 'ANTECEDENTES E REGISTROS', icon: <FileSearch className="text-red-800" /> },
       'mandado': { label: 'ANTECEDENTES E REGISTROS', icon: <AlertTriangle className="text-red-950" /> },
       'histori': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
       'moviment': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
+      'ficha': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
+      'protocolo': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
       'biometria': { label: 'DADOS BIOMÉTRICOS', icon: <Fingerprint className="text-blue-500" /> },
+      'digitais': { label: 'DADOS BIOMÉTRICOS', icon: <Fingerprint className="text-blue-500" /> },
       'escolar': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> },
       'faculdade': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> },
-      'universit': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> }
+      'universit': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> },
+      'matricula': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> }
     };
 
     for (const [keyWord, theme] of Object.entries(themes)) {
@@ -192,7 +213,6 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
   const catData = useMemo(() => {
     if (!displayData) return [];
     
-    // Grouping by label to eliminate duplicates
     const categories: Record<string, { label: string; icon: any; data: any }> = {};
 
     const images = findImagesWithContext(displayData);
@@ -210,15 +230,12 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
         if (!categories[label]) {
             categories[label] = { label, icon: theme.icon, data: {} };
         }
-        
-        // If it's pure data at this level, or nested, store it
         categories[label].data[key] = value;
       });
     };
 
     process(displayData);
 
-    // Order
     const order = [
       'GALERIA DE FOTOS', 'IDENTIFICAÇÃO PRINCIPAL', 'HISTÓRICO REGISTRADO', 'DADOS BIOMÉTRICOS', 
       'SITUAÇÃO NA RECEITA FEDERAL', 'VÍNCULOS FAMILIARES', 'LOCALIZAÇÃO / ENDEREÇOS', 
@@ -226,7 +243,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'CARTÓRIO E REGISTRO CIVIL', 'DIREITO E PROCESSOS', 'ANTECEDENTES E REGISTROS',
       'SAÚDE E VACINAÇÃO', 'SAÚDE E ASSISTÊNCIA', 'FINANÇAS E BANCÁRIO', 
       'RENDA E PATRIMÔNIO', 'BENEFÍCIOS SOCIAIS', 'HISTÓRICO PROFISSIONAL',
-      'PERFIL DE CONSUMO', 'VEÍCULOS E TRÂNSITO'
+      'PARTICIPAÇÕES SOCIETÁRIAS', 'EDUCAÇÃO E FORMAÇÃO', 'PERFIL DE CONSUMO', 'VEÍCULOS E TRÂNSITO'
     ];
 
     const categoriesWithData = Object.entries(categories).filter(([_, cat]) => {
