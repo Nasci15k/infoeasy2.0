@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Check, Download, ChevronDown, ChevronUp, Image as ImageIcon, User, MapPin, Phone, CreditCard, FileText, Briefcase, Heart, Info, Users, Activity, ShieldCheck, Printer } from 'lucide-react';
+import { Copy, Check, Download, ChevronDown, ChevronUp, Image as ImageIcon, User, MapPin, Phone, CreditCard, FileText, Briefcase, Heart, Info, Users, Activity, ShieldCheck, Printer, Syringe, Landmark, Stethoscope } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ImageDisplay } from '@/components/ImageDisplay';
 import { useState, useMemo } from 'react';
@@ -16,7 +16,7 @@ interface ApiResponseProps {
 export function ApiResponse({ data, apiName }: ApiResponseProps) {
   const { toast } = useToast();
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['personal', 'images', 'documents', 'relationship', 'address', 'contact']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['images', 'personal', 'documents', 'relationship', 'address', 'contact', 'health', 'financial']));
 
   const copyToClipboard = (text: string, field: string) => {
     if (!text) return;
@@ -31,18 +31,17 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
            (value.length > 200 && /^[A-Za-z0-9+/=]+$/.test(value.substring(0, 100)));
   };
 
-  // Helper to find all images with their proper context (Name or Relationship)
+  // Improved context discovery for gallery labels (Name - Relationship)
   const findImagesWithContext = (obj: any, parentKey = '', context: any = {}): { key: string; value: string; label: string }[] => {
     let images: { key: string; value: string; label: string }[] = [];
     if (!obj || typeof obj !== 'object') return images;
 
-    // Capture context from current level (names, relationships)
     const currentContext = { ...context };
     if (obj.nome) currentContext.name = obj.nome;
-    if (obj.parentesco) currentContext.rel = obj.parentesco;
-    if (obj.tipo && obj.tipo.length < 30) currentContext.type = obj.tipo;
-    if (obj.vinculo) currentContext.rel = obj.vinculo;
-    if (obj.relacao) currentContext.rel = obj.relacao;
+    if (obj.parentesco || obj.tipoRelacao || obj.vinculo || obj.relacao) {
+      currentContext.rel = obj.parentesco || obj.tipoRelacao || obj.vinculo || obj.relacao;
+    }
+    if (obj.tipo && String(obj.tipo).length < 20) currentContext.type = obj.tipo;
 
     if (Array.isArray(obj)) {
       obj.forEach((item, index) => {
@@ -51,12 +50,15 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     } else {
       for (const [key, value] of Object.entries(obj)) {
         if (isBase64Image(value) || (typeof value === 'string' && value.startsWith('http'))) {
-          // Determine best label
-          let label = currentContext.name || currentContext.rel || currentContext.type || key;
+          const parts = [];
+          if (currentContext.name) parts.push(String(currentContext.name).toUpperCase());
+          if (currentContext.rel) parts.push(String(currentContext.rel).toUpperCase());
+          
+          let label = parts.length > 0 ? parts.join(' - ') : (currentContext.type || key);
           if (label === key && (key.toLowerCase() === 'base64' || key.toLowerCase() === 'data')) {
             label = parentKey || 'Imagem';
           }
-          images.push({ key, value: value as string, label: String(label).toUpperCase() });
+          images.push({ key, value: value as string, label: String(label) });
         } else if (typeof value === 'object') {
           images = [...images, ...findImagesWithContext(value, key, currentContext)];
         }
@@ -65,13 +67,9 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     return images;
   };
 
-  // Deep Unwrap: Digs through layers like Data > Dados > Data until it finds the payload
   const displayData = useMemo(() => {
     if (!data) return null;
-    let metadata: any = {
-      saldo: data.saldo || 'N/A',
-      tempo: data.tempo_segundos || '0s'
-    };
+    let metadata: any = { saldo: data.saldo || 'N/A', tempo: data.tempo_segundos || '0s' };
 
     const unwrap = (obj: any): any => {
       if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
@@ -80,13 +78,8 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       if (obj.conta) metadata.conta = obj.conta;
 
       const entries = Object.entries(obj);
-      const containerEntry = entries.find(([k]) => 
-        ['data', 'dados', 'content', 'resultado', 'payload'].includes(k.toLowerCase())
-      );
-
-      if (entries.length <= 5 && containerEntry) {
-        return unwrap(containerEntry[1]);
-      }
+      const containerEntry = entries.find(([k]) => ['data', 'dados', 'content', 'resultado', 'payload'].includes(k.toLowerCase()));
+      if (entries.length <= 6 && containerEntry) return unwrap(containerEntry[1]);
       return obj;
     };
 
@@ -94,35 +87,38 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     return { ...unwrapped, _metadata: metadata };
   }, [data]);
 
+  const isValidValue = (v: any): boolean => {
+    if (v === null || v === undefined) return false;
+    if (typeof v === 'string') {
+      const low = v.toLowerCase().trim();
+      if (low === '' || low === 'não informado' || low === '---' || low === 'não encontrado' || low === 'não' || low === 'undefined') return false;
+    }
+    if (Array.isArray(v) && v.length === 0) return false;
+    if (typeof v === 'object' && Object.keys(v).length === 0) return false;
+    return true;
+  };
+
   const formatFieldName = (key: string): string => {
     const specials: Record<string, string> = {
-      'cns': 'CNS', 'cpf': 'CPF', 'cnpj': 'CNPJ', 'rg': 'RG', 'uf': 'UF', 'pis': 'PIS',
-      'ctps': 'CTPS', 'ddd': 'DDD', 'cep': 'CEP', 'nis': 'NIS', 'mae': 'Mãe',
-      'pai': 'Pai', 'nasc': 'Nascimento', 'dataNasc': 'Data Nasc.',
-      'siglaUf': 'UF', 'logradouro': 'Endereço', 'bairro': 'Bairro', 
-      'dataSit': 'Data Situação', 'descricaoSit': 'Situação', 'municipioResidencia': 'Cidade',
-      'paisResidencia': 'País', 'tipoLogradouro': 'Logradouro', 'municipioNascimento': 'Naturalidade'
+      'cns': 'CNS', 'cpf': 'CPF', 'cnpj': 'CNPJ', 'rg': 'RG', 'uf': 'UF', 'pis': 'PIS', 'cep': 'CEP',
+      'mae': 'Mãe', 'pai': 'Pai', 'nasc': 'Nascimento', 'dataNasc': 'D. Nasc.', 'social': 'Nome Social',
+      'situacao': 'Status', 'logradouro': 'Endereço', 'cidade': 'Cidade', 'municipio': 'Cidade',
+      'telefone': 'Telefone', 'ddd': 'DDD', 'celular': 'Celular', 'email': 'E-mail',
+      'parentesco': 'Parentesco', 'vinculo': 'Vínculo', 'relacao': 'Relação', 'sexo': 'Gênero'
     };
-
     const cleanKey = key.split(' > ').pop() || key;
     if (specials[cleanKey]) return specials[cleanKey];
     if (specials[cleanKey.toLowerCase()]) return specials[cleanKey.toLowerCase()];
-
-    return cleanKey
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/_/g, ' ')
-      .trim()
+    return cleanKey.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
   };
 
   const renderValue = (v: any): string => {
-    if (v === null || v === undefined) return '---';
     if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
     if (v === 'F') return 'Feminino';
     if (v === 'M') return 'Masculino';
-    if (typeof v === 'string' && (v.trim() === '' || v.toLowerCase() === 'não encontrado')) return '---';
     return String(v);
   };
 
@@ -136,16 +132,12 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
   const downloadAsTxt = () => {
     const buildString = (obj: any, indent = ''): string => {
       let str = '';
-      if (!obj || typeof obj !== 'object') return String(obj) + '\n';
-      
+      if (!obj || typeof obj !== 'object') return isValidValue(obj) ? String(obj) + '\n' : '';
       for (const [key, value] of Object.entries(obj)) {
-        if (key === '_metadata' || key === 'raw' || isBase64Image(value)) continue;
-        
+        if (key === '_metadata' || key === 'raw' || isBase64Image(value) || !isValidValue(value)) continue;
         if (Array.isArray(value)) {
           str += `${indent}${formatFieldName(key)}:\n`;
-          value.forEach((v, i) => {
-            str += `${indent}  [${i + 1}]:\n${buildString(v, indent + '    ')}`;
-          });
+          value.forEach((v, i) => { str += `${indent}  [${i + 1}]:\n${buildString(v, indent + '    ')}`; });
         } else if (typeof value === 'object' && value !== null) {
           str += `${indent}${formatFieldName(key)}:\n${buildString(value, indent + '  ')}`;
         } else {
@@ -154,68 +146,56 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       }
       return str;
     };
-
-    const reportContent = `=== INFOEASY 2.0 - RELATÓRIO DE CONSULTA ===\n` +
-      `API: ${apiName.toUpperCase()}\n` +
-      `DATA: ${new Date().toLocaleString('pt-BR')}\n` +
-      `==========================================\n\n` +
-      buildString(displayData);
-
+    const reportContent = `=== INFOEASY 2.0 - CONSULTA EXECUTIVA ===\nAPI: ${apiName.toUpperCase()}\nDATA: ${new Date().toLocaleString('pt-BR')}\n==========================================\n\n${buildString(displayData)}`;
     const blob = new Blob([reportContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Relatorio_${apiName}_${new Date().getTime()}.txt`;
+    link.download = `Relatorio_${apiName}_${Date.now()}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
-    toast({ title: 'Relatório Gerado', description: 'O arquivo TXT foi baixado com sucesso.' });
+    toast({ title: 'Relatório Baixado' });
   };
 
-  // Full Recursive Renderer (Fidelity 1:1)
-  const renderEntries = (obj: any, depth = 0): JSX.Element | null => {
+  const renderEntriesRecursive = (obj: any, depth = 0): JSX.Element | null => {
     if (!obj || typeof obj !== 'object') return null;
 
-    return (
-      <div className={cn("grid grid-cols-1 gap-3", depth > 0 && "mt-2 ml-4 pl-3 border-l-2 border-primary/10")}>
-        {Object.entries(obj).map(([key, value]) => {
-          if (key === '_metadata' || key === 'raw' || key === 'base64' || isBase64Image(value)) return null;
+    const entries = Object.entries(obj).filter(([k, v]) => k !== '_metadata' && k !== 'raw' && k !== 'base64' && !isBase64Image(v) && isValidValue(v));
+    if (entries.length === 0) return null;
 
+    return (
+      <div className={cn("grid gap-4", depth === 0 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 mt-2 ml-4 pl-4 border-l-2 border-primary/10")}>
+        {entries.map(([key, value]) => {
           const isObj = typeof value === 'object' && value !== null;
           const isArr = Array.isArray(value);
 
           return (
-            <div key={key} className="flex flex-col gap-1.5 animate-in fade-in duration-300">
-              <div className="flex items-start gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/80 min-w-[100px] mt-1">
-                  {formatFieldName(key)}:
-                </span>
-                {!isObj && !isArr ? (
-                  <div className="group flex items-center gap-2 flex-1">
-                    <span className="text-sm font-semibold text-foreground break-words">{renderValue(value)}</span>
-                    {value && String(value).length < 100 && (
-                      <Button variant="ghost" size="sm" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => copyToClipboard(String(value), key)}>
-                        {copiedField === key ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                      </Button>
-                    )}
-                  </div>
-                ) : null}
+            <div key={key} className={cn("flex flex-col gap-1 group/field pb-2 border-b border-white/5", (isObj || isArr || String(value).length > 60) && "md:col-span-2 lg:col-span-2")}>
+              <div className="flex items-center gap-2">
+                 <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">{formatFieldName(key)}</span>
+                 {!isObj && !isArr && (
+                   <Button variant="ghost" size="sm" className="h-4 w-4 p-0 opacity-0 group-hover/field:opacity-100 transition-opacity" onClick={() => copyToClipboard(String(value), key)}>
+                     <Copy className="h-2.5 w-2.5" />
+                   </Button>
+                 )}
               </div>
               
-              {isArr ? (
+              {!isObj && !isArr ? (
+                <div className="text-sm font-bold text-foreground/90 break-words line-clamp-3">{renderValue(value)}</div>
+              ) : isArr ? (
                 <div className="space-y-3 mt-1">
                   {value.map((item: any, i: number) => (
-                    <div key={i} className="bg-muted/30 p-3 rounded-lg border border-border/40 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 right-0 px-2 py-0.5 bg-primary/10 text-[8px] font-bold text-primary rounded-bl-md">#{i+1}</div>
-                      {typeof item === 'object' ? renderEntries(item, depth + 1) : <span className="text-sm">{renderValue(item)}</span>}
+                    <div key={i} className="bg-white/[0.03] p-3 rounded-2xl border border-white/5 shadow-inner relative pt-6">
+                      <div className="absolute top-2 left-3 px-2 py-0.5 bg-primary/20 text-[7px] font-black text-primary rounded-full uppercase tracking-tighter">Item {i+1}</div>
+                      {typeof item === 'object' ? renderEntriesRecursive(item, depth + 1) : <span className="text-xs font-bold">{renderValue(item)}</span>}
                     </div>
                   ))}
                 </div>
-              ) : isObj ? (
-                renderEntries(value, depth + 1)
-              ) : null}
+              ) : (
+                renderEntriesRecursive(value, depth + 1)
+              )}
             </div>
           );
         })}
@@ -223,125 +203,134 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     );
   };
 
-  const categorizeExhaustively = (obj: any) => {
+  const categorizeSmart = (obj: any) => {
     const categories: Record<string, { label: string; icon: any; data: any }> = {
-      images: { label: 'Galeria de Fotos', icon: <ImageIcon className="h-5 w-5 text-purple-500" />, data: [] },
-      personal: { label: 'Dados Cadastrais', icon: <User className="h-5 w-5 text-blue-500" />, data: {} },
-      documents: { label: 'Documentação', icon: <ShieldCheck className="h-5 w-5 text-emerald-500" />, data: {} },
-      address: { label: 'Localização', icon: <MapPin className="h-5 w-5 text-red-500" />, data: {} },
-      relationship: { label: 'Filição / Parentesco', icon: <Users className="h-5 w-5 text-pink-500" />, data: {} },
-      contact: { label: 'Contatos', icon: <Phone className="h-5 w-5 text-green-500" />, data: {} },
-      financial: { label: 'Finanças / Benefícios', icon: <CreditCard className="h-5 w-5 text-orange-500" />, data: {} },
-      work: { label: 'Trabalho', icon: <Briefcase className="h-5 w-5 text-slate-500" />, data: {} },
-      health: { label: 'Saúde', icon: <Heart className="h-5 w-5 text-rose-500" />, data: {} },
-      other: { label: 'Informações Adicionais', icon: <Info className="h-5 w-5 text-slate-400" />, data: {} },
+      images: { label: 'Galeria de Fotos', icon: <ImageIcon className="h-5 w-5 text-purple-400" />, data: [] },
+      personal: { label: 'Identidade e Dados Pessoais', icon: <User className="h-5 w-5 text-blue-400" />, data: {} },
+      documents: { label: 'Documentação / Identificação', icon: <ShieldCheck className="h-5 w-5 text-emerald-400" />, data: {} },
+      address: { label: 'Localização / Endereços', icon: <MapPin className="h-5 w-5 text-red-400" />, data: {} },
+      relationship: { label: 'Parentesco e Filição', icon: <Users className="h-5 w-5 text-pink-400" />, data: {} },
+      contact: { label: 'Contatos / Canais', icon: <Phone className="h-5 w-5 text-green-400" />, data: {} },
+      health: { label: 'Saúde / Vacinação / SUS', icon: <Syringe className="h-5 w-5 text-rose-400" />, data: {} },
+      financial: { label: 'Finanças / Benefícios / Renda', icon: <Landmark className="h-5 w-5 text-orange-400" />, data: {} },
+      work: { label: 'Vida Profissional / CTPS', icon: <Briefcase className="h-5 w-5 text-slate-400" />, data: {} },
+      other: { label: 'Outros Registros Identificados', icon: <Info className="h-5 w-5 text-sky-400" />, data: {} },
     };
 
     if (!obj || typeof obj !== 'object') return [];
 
-    // 1. Photo Context Extraction
     categories.images.data = findImagesWithContext(obj);
 
-    // 2. Exhaustive Mapping
-    Object.entries(obj).forEach(([key, value]) => {
-      if (key === '_metadata' || key === 'raw' || isBase64Image(value)) return;
-      
-      const k = key.toLowerCase();
-      let cat = 'other';
+    const processRecursive = (current: any) => {
+      Object.entries(current).forEach(([key, value]) => {
+        if (key === '_metadata' || key === 'raw' || isBase64Image(value) || !isValidValue(value)) return;
+        
+        const k = key.toLowerCase();
+        let cat = 'other';
 
-      if (['nome', 'nasc', 'idade', 'sexo', 'natural', 'nacio', 'genero', 'civil', 'obito', 'social', 'raca'].some(t => k.includes(t))) cat = 'personal';
-      else if (['cpf', 'cnpj', 'rg', 'cnh', 'titul', 'pis', 'ctps', 'passa', 'docum', 'identi', 'cns', 'situa'].some(t => k.includes(t))) cat = 'documents';
-      else if (['enderc', 'addres', 'rua', 'bairr', 'cidad', 'estad', 'cep', 'uf', 'logra', 'municip', 'residenc'].some(t => k.includes(t))) cat = 'address';
-      else if (['telef', 'phone', 'celul', 'email', 'whats', 'contat', 'tel', 'fone', 'ddd', 'numero'].some(t => k.includes(t))) cat = 'contact';
-      else if (['renda', 'salar', 'scor', 'credit', 'divid', 'valor', 'financ', 'banc', 'pagam', 'auxil', 'benefic'].some(t => k.includes(t))) cat = 'financial';
-      else if (['parent', 'vincul', 'mae', 'pai', 'irmao', 'filho', 'conju', 'filiac'].some(t => k.includes(t))) cat = 'relationship';
-      else if (['empres', 'trabal', 'empreg', 'carg', 'func', 'admis', 'meis'].some(t => k.includes(t))) cat = 'work';
-      else if (['saude', 'medic', 'hospit', 'unimed', 'vacin', 'inss', 'loas'].some(t => k.includes(t))) cat = 'health';
+        if (['nome', 'nasc', 'idade', 'sexo', 'natural', 'nacio', 'genero', 'civil', 'obito', 'social', 'raca', 'etnia'].some(t => k.includes(t))) cat = 'personal';
+        else if (['cpf', 'cnpj', 'rg', 'cnh', 'titul', 'pis', 'ctps', 'passa', 'docum', 'identi', 'cns', 'cedula', 'protocolo'].some(t => k.includes(t))) cat = 'documents';
+        else if (['enderc', 'addres', 'rua', 'bairr', 'cidad', 'estad', 'cep', 'uf', 'logra', 'municip', 'residenc'].some(t => k.includes(t))) cat = 'address';
+        else if (['telef', 'phone', 'celul', 'email', 'whats', 'contat', 'tel', 'fone', 'ddd', 'numero'].some(t => k.includes(t))) cat = 'contact';
+        else if (['renda', 'salar', 'scor', 'credit', 'divid', 'valor', 'financ', 'banc', 'pagam', 'auxil', 'benefic', 'venciment'].some(t => k.includes(t))) cat = 'financial';
+        else if (['parent', 'vincul', 'mae', 'pai', 'irmao', 'filho', 'conju', 'filiac', 'relac'].some(t => k.includes(t))) cat = 'relationship';
+        else if (['empres', 'trabal', 'empreg', 'carg', 'func', 'admis', 'meis', 'escola', 'facul', 'univer', 'curric'].some(t => k.includes(t))) cat = 'work';
+        else if (['saude', 'medic', 'hospit', 'unimed', 'vacin', 'inss', 'loas', 'dose', 'lote', 'aplic', 'stetho', 'prontuario'].some(t => k.includes(t))) cat = 'health';
 
-      categories[cat].data[key] = value;
-    });
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+           // Se o objeto pai já é o dado real (ex: Enderecos), processamos os filhos mas mantemos a estrutura
+           categories[cat].data[key] = value;
+        } else {
+          categories[cat].data[key] = value;
+        }
+      });
+    };
 
-    return Object.entries(categories).filter(([_, c]) => (Array.isArray(c.data) ? c.data.length > 0 : Object.keys(c.data).length > 0));
+    processRecursive(obj);
+
+    // Prioridade de exibição para Dados Pessoais e Imagens
+    const order = ['images', 'personal', 'documents', 'address', 'relationship', 'contact', 'health', 'financial', 'work', 'other'];
+    return Object.entries(categories)
+      .filter(([_, c]) => (Array.isArray(c.data) ? c.data.length > 0 : Object.keys(c.data).length > 0))
+      .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
   };
 
-  const catData = useMemo(() => categorizeExhaustively(displayData), [displayData]);
+  const catData = useMemo(() => categorizeSmart(displayData), [displayData]);
   if (!displayData) return null;
 
   return (
-    <Card className="mt-8 shadow-2xl border-none overflow-hidden bg-card/40 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4 duration-700 ring-1 ring-white/10">
-      <CardHeader className="relative bg-gradient-to-br from-primary/20 via-background to-background border-b border-white/5 pb-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <CardTitle className="flex items-center gap-5">
-            <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/30 shadow-lg glow-primary">
-              <ShieldCheck className="h-8 w-8 text-primary" />
+    <Card className="mt-8 border-none bg-[#0a0a0b]/80 backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,1)] ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500 rounded-[2.5rem] overflow-hidden">
+      <CardHeader className="p-8 md:p-12 bg-gradient-to-br from-primary/20 via-transparent to-transparent border-b border-white/5">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+          <div className="flex items-center gap-6">
+            <div className="h-20 w-20 rounded-3xl bg-primary/10 flex items-center justify-center border border-primary/30 shadow-[0_0_30px_rgba(var(--primary),0.3)] relative">
+              <ShieldCheck className="h-10 w-10 text-primary" />
+              <div className="absolute -bottom-2 -right-2 h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg border-2 border-[#0a0a0b]">
+                <Check className="h-3 w-3 text-white" />
+              </div>
             </div>
             <div>
-              <div className="text-3xl font-black tracking-tighter text-foreground uppercase drop-shadow-md">Resultado da Consulta</div>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 font-black uppercase text-[9px] tracking-widest">
+              <h2 className="text-4xl font-black tracking-tight text-white mb-2 uppercase">Relatório Master</h2>
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-none px-4 py-1.5 rounded-full font-black text-[10px] tracking-widest uppercase">
                   {apiName}
                 </Badge>
                 {displayData._metadata?.cached_at && (
-                  <Badge variant="outline" className="text-[9px] bg-sky-500/5 text-sky-400 border-sky-400/20 gap-1 font-mono uppercase">
-                    <Activity className="h-3 w-3" /> Atualizado: {displayData._metadata.cached_at}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-white/50 uppercase tracking-widest">
+                    <Activity className="h-3 w-3 text-emerald-400" /> {displayData._metadata.cached_at}
+                  </div>
                 )}
               </div>
             </div>
-          </CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={downloadAsTxt} className="bg-background/50 hover:bg-primary/10 border-primary/20 text-primary font-bold text-[10px] uppercase tracking-widest gap-2">
-              <Download className="h-3.5 w-3.5" /> Baixar TXT
+          </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <Button onClick={downloadAsTxt} className="flex-1 md:flex-none h-12 px-6 rounded-2xl bg-white text-black hover:bg-white/90 font-black text-[11px] uppercase tracking-widest gap-2 transition-all active:scale-95 shadow-xl">
+              <Download className="h-4 w-4" /> Relatório Executivo
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => window.print()} className="text-muted-foreground hover:text-foreground font-bold text-[10px] uppercase tracking-widest gap-2">
-              <Printer className="h-3.5 w-3.5" /> Imprimir
+            <Button variant="outline" onClick={() => window.print()} className="h-12 w-12 md:w-auto md:px-6 rounded-2xl border-white/10 bg-white/5 text-white hover:bg-white/10 hover:border-white/20 font-black text-[11px] uppercase tracking-widest gap-2 transition-all">
+              <Printer className="h-4 w-4" /> <span className="hidden md:inline">Imprimir</span>
             </Button>
           </div>
         </div>
       </CardHeader>
       
-      <CardContent className="pt-8 pb-12 px-4 md:px-8 space-y-8">
+      <CardContent className="p-8 md:p-12 space-y-12">
         {catData.map(([ck, cat]) => (
-          <Collapsible key={ck} open={expandedSections.has(ck)} onOpenChange={() => toggleSection(ck)} className="group/section border border-white/5 rounded-3xl overflow-hidden shadow-2xl bg-white/5 transition-all hover:bg-white/[0.07] hover:border-primary/20">
+          <Collapsible key={ck} open={expandedSections.has(ck)} onOpenChange={() => toggleSection(ck)} className="group/section space-y-4">
             <CollapsibleTrigger asChild>
-              <div className={cn("w-full flex items-center justify-between cursor-pointer px-6 py-5 transition-all text-left", expandedSections.has(ck) ? "bg-primary/5 border-b border-white/5" : "")}>
+              <div className="flex items-center justify-between cursor-pointer group-hover/section:translate-x-1 transition-transform">
                 <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-background/50 shadow-inner border border-white/5">{cat.icon}</div>
-                  <div>
-                    <span className="text-xs font-black tracking-widest uppercase text-foreground/80">{cat.label}</span>
-                    <div className="text-[9px] text-muted-foreground/50 font-bold uppercase tracking-tighter">
-                      {Array.isArray(cat.data) ? cat.data.length : Object.keys(cat.data).length} REGISTROS
-                    </div>
-                  </div>
+                   <div className="p-3 rounded-2xl bg-white/5 border border-white/10 group-hover/section:bg-primary/20 group-hover/section:border-primary/30 transition-all">
+                     {cat.icon}
+                   </div>
+                   <div>
+                     <h3 className="text-lg font-black text-white/90 uppercase tracking-widest">{cat.label}</h3>
+                     <span className="text-[10px] font-black text-primary uppercase tracking-tighter">Mapeamento Completo</span>
+                   </div>
                 </div>
-                <div className="h-8 w-8 rounded-full flex items-center justify-center bg-background/50 border border-white/5 shadow-sm group-hover/section:scale-110 transition-transform">
-                  {expandedSections.has(ck) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <div className={cn("h-10 w-10 rounded-full flex items-center justify-center bg-white/5 border border-white/10 transition-all", expandedSections.has(ck) && "bg-primary/10 border-primary/20")}>
+                  {expandedSections.has(ck) ? <ChevronUp className="h-5 w-5 text-primary" /> : <ChevronDown className="h-5 w-5 text-white/30" />}
                 </div>
               </div>
             </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="p-6 md:p-8">
+            
+            <CollapsibleContent className="pt-2">
+              <div className="p-8 rounded-[2rem] bg-white/[0.02] border border-white/5 shadow-inner">
                 {ck === 'images' ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8">
                     {cat.data.map((img: any, i: number) => (
-                      <div key={i} className="group/img space-y-3">
-                        <div className="aspect-[4/5] relative rounded-2xl overflow-hidden border border-white/5 bg-black/20 shadow-2xl group-hover/img:scale-105 transition-all duration-500 group-hover/img:ring-4 ring-primary/20">
-                          <ImageDisplay 
-                            imageData={isBase64Image(img.value) ? img.value : undefined} 
-                            imageUrl={img.value.startsWith('http') ? img.value : undefined} 
-                            name={img.label} 
-                          />
+                      <div key={i} className="group/img space-y-4 animate-in fade-in zoom-in duration-500" style={{ animationDelay: `${i * 100}ms` }}>
+                        <div className="aspect-[3/4] relative rounded-[1.5rem] overflow-hidden border border-white/10 bg-black shadow-2xl transition-all duration-700 group-hover/img:scale-105 group-hover/img:ring-4 ring-primary/20 group-hover/img:border-primary/40">
+                          <ImageDisplay imageData={isBase64Image(img.value) ? img.value : undefined} imageUrl={img.value.startsWith('http') ? img.value : undefined} name={img.label} />
                         </div>
-                        <div className="text-[9px] text-center font-black text-muted-foreground/90 uppercase tracking-tighter bg-white/5 py-1.5 rounded-lg px-2 border border-white/5 truncate">
+                        <div className="text-[10px] text-center font-black text-white/40 uppercase tracking-tighter bg-white/5 py-2 px-3 rounded-xl border border-white/5 group-hover/img:text-primary transition-colors">
                           {img.label}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    {renderEntries(cat.data)}
-                  </div>
+                  renderEntriesRecursive(cat.data)
                 )}
               </div>
             </CollapsibleContent>
