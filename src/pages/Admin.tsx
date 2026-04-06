@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserCheck, UserX, Settings, BarChart2, Store } from 'lucide-react';
+import { Shield, UserCheck, UserX, Settings, BarChart2, Store, Bot, Save, Loader2, Send, Terminal, Globe, Eye, EyeOff } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { AdminStats } from '@/components/admin/AdminStats';
 import { ApprovalDialog } from '@/components/admin/ApprovalDialog';
@@ -30,6 +30,20 @@ export default function Admin() {
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
+  // Bot settings state
+  const [botSettings, setBotSettings] = useState({
+    telegram_token: '',
+    discord_token: '',
+    discord_app_id: '',
+    discord_public_key: '',
+    site_url: '',
+  });
+  const [savingBots, setSavingBots] = useState(false);
+  const [registeringTg, setRegisteringTg] = useState(false);
+  const [registeringDc, setRegisteringDc] = useState(false);
+  const [registerResult, setRegisterResult] = useState<{ type: 'telegram' | 'discord'; message: string; success: boolean } | null>(null);
+  const [showTokens, setShowTokens] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     if (loading || roleLoading) return;
 
@@ -42,6 +56,75 @@ export default function Admin() {
       });
     }
   }, [profile, isAdmin, loading, roleLoading, navigate, toast]);
+
+  // Carregar configurações dos bots
+  useEffect(() => {
+    if (!isAdmin) return;
+    const loadBotSettings = async () => {
+      const { data, error } = await (supabase as any).from('bot_settings').select('key, value');
+      if (error || !data) return;
+      const cfg: Record<string, string> = {};
+      data.forEach((s: any) => { cfg[s.key] = s.value; });
+      setBotSettings({
+        telegram_token:    cfg['telegram_token']    || '',
+        discord_token:     cfg['discord_token']     || '',
+        discord_app_id:    cfg['discord_app_id']    || '',
+        discord_public_key: cfg['discord_public_key'] || '',
+        site_url:          cfg['site_url']          || 'https://infoseasy.netlify.app',
+      });
+    };
+    loadBotSettings();
+  }, [isAdmin]);
+
+  const handleSaveBotSettings = async () => {
+    setSavingBots(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('register-bots', {
+        body: { action: 'save_settings', settings: botSettings },
+      });
+      if (error) throw error;
+      toast({ title: '✅ Salvo!', description: data?.message || 'Configurações atualizadas.' });
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar', description: err?.message, variant: 'destructive' });
+    } finally {
+      setSavingBots(false);
+    }
+  };
+
+  const handleRegisterTelegram = async () => {
+    setRegisteringTg(true);
+    setRegisterResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('register-bots', {
+        body: { action: 'register_telegram' },
+      });
+      if (error) throw error;
+      setRegisterResult({ type: 'telegram', message: data?.message || 'Feito!', success: !!data?.success });
+    } catch (err: any) {
+      setRegisterResult({ type: 'telegram', message: err?.message || 'Erro desconhecido', success: false });
+    } finally {
+      setRegisteringTg(false);
+    }
+  };
+
+  const handleRegisterDiscord = async () => {
+    setRegisteringDc(true);
+    setRegisterResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('register-bots', {
+        body: { action: 'register_discord' },
+      });
+      if (error) throw error;
+      setRegisterResult({ type: 'discord', message: data?.message || 'Feito!', success: !!data?.success });
+    } catch (err: any) {
+      setRegisterResult({ type: 'discord', message: err?.message || 'Erro desconhecido', success: false });
+    } finally {
+      setRegisteringDc(false);
+    }
+  };
+
+  const toggleShowToken = (key: string) =>
+    setShowTokens(prev => ({ ...prev, [key]: !prev[key] }));
 
   if (loading || roleLoading) {
     return (
@@ -200,7 +283,7 @@ export default function Admin() {
           </CardHeader>
           <CardContent className="pt-6">
             <Tabs defaultValue="stats">
-              <TabsList className="grid w-full grid-cols-5 mb-6">
+              <TabsList className="grid w-full grid-cols-6 mb-6">
                 <TabsTrigger value="stats">
                   <BarChart2 className="h-4 w-4 mr-2" />
                   Estatísticas
@@ -217,6 +300,10 @@ export default function Admin() {
                 <TabsTrigger value="sellers">
                   <Store className="h-4 w-4 mr-2" />
                   Vendedores
+                </TabsTrigger>
+                <TabsTrigger value="bots">
+                  <Bot className="h-4 w-4 mr-2" />
+                  Bots
                 </TabsTrigger>
               </TabsList>
 
@@ -431,6 +518,150 @@ export default function Admin() {
 
               <TabsContent value="sellers">
                 <SellersTab />
+              </TabsContent>
+
+              <TabsContent value="bots">
+                <div className="space-y-8">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 pb-4 border-b">
+                    <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
+                      <Bot className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-slate-900">Configuração dos Bots</h3>
+                      <p className="text-sm text-muted-foreground">Cole os tokens dos bots e registre os webhooks com um clique.</p>
+                    </div>
+                  </div>
+
+                  {/* Site URL */}
+                  <Card className="border-slate-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-slate-500" />
+                        URL do Site
+                      </CardTitle>
+                      <CardDescription>URL base usada para gerar links compartilháveis. Altere quando trocar o domínio.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Input
+                        value={botSettings.site_url}
+                        onChange={e => setBotSettings(p => ({ ...p, site_url: e.target.value }))}
+                        placeholder="https://infoseasy.netlify.app"
+                        className="font-mono text-sm"
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* Telegram */}
+                  <Card className="border-blue-100 bg-blue-50/30">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Send className="h-4 w-4 text-blue-500" />
+                        Bot do Telegram
+                      </CardTitle>
+                      <CardDescription>Crie o bot no @BotFather e cole o token abaixo.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wide text-slate-500">Token do Bot</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type={showTokens['telegram_token'] ? 'text' : 'password'}
+                            value={botSettings.telegram_token}
+                            onChange={e => setBotSettings(p => ({ ...p, telegram_token: e.target.value }))}
+                            placeholder="1234567890:ABCDefghIJKlmNoPQRsTUVwxyZ"
+                            className="font-mono text-xs flex-1"
+                          />
+                          <Button variant="ghost" size="sm" className="px-2" onClick={() => toggleShowToken('telegram_token')}>
+                            {showTokens['telegram_token'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleRegisterTelegram}
+                        disabled={registeringTg || !botSettings.telegram_token}
+                        className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                        size="sm"
+                      >
+                        {registeringTg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Terminal className="h-3.5 w-3.5" />}
+                        Registrar Webhook Telegram
+                      </Button>
+                      {registerResult?.type === 'telegram' && (
+                        <div className={`text-xs font-mono p-3 rounded-xl border ${
+                          registerResult.success
+                            ? 'bg-green-50 border-green-200 text-green-800'
+                            : 'bg-red-50 border-red-200 text-red-800'
+                        }`}>
+                          {registerResult.message}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Discord */}
+                  <Card className="border-indigo-100 bg-indigo-50/30">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Bot className="h-4 w-4 text-indigo-500" />
+                        Bot do Discord
+                      </CardTitle>
+                      <CardDescription>Crie o app em discord.com/developers e preencha os dados abaixo.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {[
+                        { key: 'discord_token',      label: 'Bot Token',            placeholder: 'MTIzNDU2Nzg5...' },
+                        { key: 'discord_app_id',     label: 'Application ID',       placeholder: '1234567890123456789' },
+                        { key: 'discord_public_key', label: 'Public Key (Ed25519)',  placeholder: 'a1b2c3d4e5f6...' },
+                      ].map(({ key, label, placeholder }) => (
+                        <div key={key} className="space-y-1.5">
+                          <Label className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type={showTokens[key] ? 'text' : 'password'}
+                              value={(botSettings as any)[key]}
+                              onChange={e => setBotSettings(p => ({ ...p, [key]: e.target.value }))}
+                              placeholder={placeholder}
+                              className="font-mono text-xs flex-1"
+                            />
+                            <Button variant="ghost" size="sm" className="px-2" onClick={() => toggleShowToken(key)}>
+                              {showTokens[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        onClick={handleRegisterDiscord}
+                        disabled={registeringDc || !botSettings.discord_token || !botSettings.discord_app_id}
+                        className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                        size="sm"
+                      >
+                        {registeringDc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Terminal className="h-3.5 w-3.5" />}
+                        Registrar Comandos Discord
+                      </Button>
+                      {registerResult?.type === 'discord' && (
+                        <div className={`text-xs font-mono p-3 rounded-xl border whitespace-pre-wrap break-all ${
+                          registerResult.success
+                            ? 'bg-green-50 border-green-200 text-green-800'
+                            : 'bg-red-50 border-red-200 text-red-800'
+                        }`}>
+                          {registerResult.message}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Botão Salvar global */}
+                  <div className="flex justify-end pt-2 border-t">
+                    <Button
+                      onClick={handleSaveBotSettings}
+                      disabled={savingBots}
+                      className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold px-8"
+                    >
+                      {savingBots ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Salvar todas as configurações
+                    </Button>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>

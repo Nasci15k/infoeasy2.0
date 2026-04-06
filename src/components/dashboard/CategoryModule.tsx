@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Search as SearchIcon } from 'lucide-react';
+import { Loader2, Search as SearchIcon, Share2, Copy, Check, Clock, X, ExternalLink } from 'lucide-react';
 import { ApiResponse } from '@/components/ApiResponse';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +25,14 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
   const [isSearching, setIsSearching] = useState(false);
   const [apiResult, setApiResult] = useState<any>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline' | 'slow'>('checking');
+
+  // Share link state
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareExpiry, setShareExpiry] = useState<Date | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [shareTimeLeft, setShareTimeLeft] = useState('');
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,6 +125,55 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
     }
   };
 
+  // Gerar link compartilhável
+  const handleShare = async () => {
+    if (!apiResult?.data || !apiResult?.api) return;
+    setIsSharing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-share-link', {
+        body: {
+          apiName: apiResult.api,
+          queryValue: queryValue,
+          responseData: apiResult.data,
+        },
+      });
+      if (error || !data?.url) throw error || new Error('Falha ao gerar link');
+      setShareLink(data.url);
+      setShareExpiry(new Date(data.expiresAt));
+      setShowShareModal(true);
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao compartilhar',
+        description: err?.message || 'Não foi possível gerar o link.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (!shareLink) return;
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Countdown do link compartilhável
+  useEffect(() => {
+    if (!shareExpiry) return;
+    const update = () => {
+      const diff = shareExpiry.getTime() - Date.now();
+      if (diff <= 0) { setShareTimeLeft('Expirado'); return; }
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setShareTimeLeft(`${m}m ${s.toString().padStart(2, '0')}s`);
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [shareExpiry]);
+
   const getStatusIndicator = () => {
     if (apiStatus === 'checking') return <div className="w-2 h-2 rounded-full bg-muted animate-pulse" />;
     if (apiStatus === 'online') return <div className="w-2 h-2 rounded-full bg-success" />;
@@ -193,7 +250,68 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
         </form>
 
       {apiResult && (
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
+          {/* Botão Compartilhar */}
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={handleShare}
+              disabled={isSharing}
+              className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 font-semibold"
+            >
+              {isSharing ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Gerando link...</>
+              ) : (
+                <><Share2 className="h-4 w-4" /> Compartilhar resultado</>
+              )}
+            </Button>
+          </div>
+
+          {/* Modal de compartilhamento */}
+          {showShareModal && shareLink && (
+            <div className="relative bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="absolute top-3 right-3 p-1 rounded-full hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-2 mb-3">
+                <Share2 className="h-5 w-5 text-blue-600" />
+                <h3 className="font-bold text-blue-900 text-sm">Link de consulta gerado!</h3>
+                <div className="ml-auto flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                  <Clock className="h-3 w-3" />
+                  {shareTimeLeft}
+                </div>
+              </div>
+              <p className="text-xs text-blue-600 mb-3">Qualquer pessoa com este link pode ver o resultado — sem precisar de login.</p>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={shareLink}
+                  className="flex-1 text-xs bg-white border-blue-200 font-mono text-slate-700 h-9"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className={`h-9 px-3 gap-1.5 font-bold text-xs transition-all ${
+                    copied ? 'bg-green-600 hover:bg-green-600' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {copied ? <><Check className="h-3.5 w-3.5" /> Copiado!</> : <><Copy className="h-3.5 w-3.5" /> Copiar</>}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.open(shareLink, '_blank')}
+                  className="h-9 px-3 border-blue-200 hover:bg-blue-50"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+
           <ApiResponse data={apiResult.data} apiName={apiResult.api} />
         </div>
       )}

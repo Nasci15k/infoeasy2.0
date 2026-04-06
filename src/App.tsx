@@ -12,6 +12,7 @@ import Admin from "./pages/Admin";
 import Reseller from "./pages/Reseller";
 import TempMail from "./pages/TempMail";
 import NotFound from "./pages/NotFound";
+import SharedQuery from "./pages/SharedQuery";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/admin" element={<Admin />} />
             <Route path="/reseller" element={<Reseller />} />
             <Route path="/tempmail" element={<TempMail />} />
+            <Route path="/share/:token" element={<SharedQuery />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

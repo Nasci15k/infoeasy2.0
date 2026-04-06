@@ -27,8 +27,8 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
 
   const isBase64Image = (value: any) => {
     if (typeof value !== 'string') return false;
-    return value.startsWith('data:image') || 
-           (value.length > 200 && /^[A-Za-z0-9+/=]+$/.test(value.substring(0, 100)));
+    return value.startsWith('data:image') ||
+      (value.length > 200 && /^[A-Za-z0-9+/=]+$/.test(value.substring(0, 100)));
   };
 
   const findImagesWithContext = (obj: any, context: any = {}): { key: string; value: string; label: string }[] => {
@@ -212,23 +212,23 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
 
   const catData = useMemo(() => {
     if (!displayData) return [];
-    
+
     const categories: Record<string, { label: string; icon: any; data: any }> = {};
 
     const images = findImagesWithContext(displayData);
     if (images.length > 0) {
-       categories['GALERIA DE FOTOS'] = { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5 text-purple-600" />, data: { _images: images } };
+      categories['GALERIA DE FOTOS'] = { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5 text-purple-600" />, data: { _images: images } };
     }
 
     const process = (obj: any) => {
       Object.entries(obj).forEach(([key, value]) => {
         if (key === '_metadata' || key === 'raw' || isBase64Image(value) || !isValidValue(value)) return;
-        
+
         const theme = getCategoryTheme(key);
         const label = theme.label;
 
         if (!categories[label]) {
-            categories[label] = { label, icon: theme.icon, data: {} };
+          categories[label] = { label, icon: theme.icon, data: {} };
         }
         categories[label].data[key] = value;
       });
@@ -237,11 +237,11 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     process(displayData);
 
     const order = [
-      'GALERIA DE FOTOS', 'IDENTIFICAÇÃO PRINCIPAL', 'HISTÓRICO REGISTRADO', 'DADOS BIOMÉTRICOS', 
-      'SITUAÇÃO NA RECEITA FEDERAL', 'VÍNCULOS FAMILIARES', 'LOCALIZAÇÃO / ENDEREÇOS', 
-      'CANAIS DE CONTATO', 'DOCUMENTAÇÃO OFICIAL', 'HISTÓRICO DE CÉDULAS (RG)', 
+      'GALERIA DE FOTOS', 'IDENTIFICAÇÃO PRINCIPAL', 'HISTÓRICO REGISTRADO', 'DADOS BIOMÉTRICOS',
+      'SITUAÇÃO NA RECEITA FEDERAL', 'VÍNCULOS FAMILIARES', 'LOCALIZAÇÃO / ENDEREÇOS',
+      'CANAIS DE CONTATO', 'DOCUMENTAÇÃO OFICIAL', 'HISTÓRICO DE CÉDULAS (RG)',
       'CARTÓRIO E REGISTRO CIVIL', 'DIREITO E PROCESSOS', 'ANTECEDENTES E REGISTROS',
-      'SAÚDE E VACINAÇÃO', 'SAÚDE E ASSISTÊNCIA', 'FINANÇAS E BANCÁRIO', 
+      'SAÚDE E VACINAÇÃO', 'SAÚDE E ASSISTÊNCIA', 'FINANÇAS E BANCÁRIO',
       'RENDA E PATRIMÔNIO', 'BENEFÍCIOS SOCIAIS', 'HISTÓRICO PROFISSIONAL',
       'PARTICIPAÇÕES SOCIETÁRIAS', 'EDUCAÇÃO E FORMAÇÃO', 'PERFIL DE CONSUMO', 'VEÍCULOS E TRÂNSITO'
     ];
@@ -288,7 +288,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
                   <div className="space-y-4 mt-2">
                     {value.map((item: any, i: number) => (
                       <div key={i} className="bg-slate-50 p-4 rounded-xl border border-slate-100 relative mb-4">
-                        <div className="absolute -top-2 left-2 px-2 py-0.5 bg-slate-200 text-[8px] font-black text-slate-600 rounded uppercase">Item #{i+1}</div>
+                        <div className="absolute -top-2 left-2 px-2 py-0.5 bg-slate-200 text-[8px] font-black text-slate-600 rounded uppercase">Item #{i + 1}</div>
                         {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-xs font-bold text-slate-800">{renderValue(item)}</span>}
                       </div>
                     ))}
@@ -355,24 +355,24 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent className="p-8 md:p-12 space-y-12">
         {catData.map(([label, cat]) => (
           <Collapsible key={label} open={expandedSections.has(label)} onOpenChange={() => toggleSection(label)} className="group space-y-4">
             <CollapsibleTrigger asChild>
               <div className="flex items-center justify-between cursor-pointer border-b border-slate-200 pb-4 group-hover:border-blue-300 transition-colors">
                 <div className="flex items-center gap-4">
-                   <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 group-hover:bg-blue-50 group-hover:border-blue-200 transition-all">
-                     {cat.icon}
-                   </div>
-                   <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">{cat.label}</h3>
+                  <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 group-hover:bg-blue-50 group-hover:border-blue-200 transition-all">
+                    {cat.icon}
+                  </div>
+                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">{cat.label}</h3>
                 </div>
                 <div className={cn("h-10 w-10 rounded-full flex items-center justify-center bg-slate-50 border border-slate-200 transition-all", expandedSections.has(label) && "bg-blue-100 border-blue-200")}>
                   {expandedSections.has(label) ? <ChevronUp className="h-5 w-5 text-blue-700" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
                 </div>
               </div>
             </CollapsibleTrigger>
-            
+
             <CollapsibleContent>
               <div className="px-2 pt-2">
                 {label === 'GALERIA DE FOTOS' ? (
