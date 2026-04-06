@@ -20,9 +20,17 @@ serve(async (req) => {
       throw new Error('Configuração do servidor incompleta (Missing Secrets)');
     }
 
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Authorization header missing' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseClient = createClient(supabaseUrl, supabaseKey, {
       global: {
-        headers: { Authorization: req.headers.get('Authorization')! },
+        headers: { Authorization: authHeader },
       },
     });
 
@@ -76,8 +84,17 @@ serve(async (req) => {
     // Processar o endpoint
     const endpointStore = api.endpoint || '';
     let apiUrl = '';
-    
-    const TOKEN_PANEL = "PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk";
+
+    // Buscar configurações globais (Tokens e URLs)
+
+    const supabaseServiceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const serviceClient = createClient(supabaseUrl!, supabaseServiceRole!);
+    const { data: settings } = await serviceClient.from('bot_settings').select('key, value');
+    const cfg: Record<string, string> = {};
+    settings?.forEach((s: any) => { cfg[s.key] = s.value; });
+
+    const TOKEN_PANEL = cfg['external_api_token'] || "PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk";
+    const BASE_URL_PANEL = cfg['external_api_url'] || "http://45.190.208.48:7070/consulta";
     const TOKEN_DUALITY = "DUALITY-FREE";
 
     const valueStr = String(queryValue);
@@ -86,7 +103,8 @@ serve(async (req) => {
     
     if (endpointStore.startsWith('panel:')) {
       const modulo = endpointStore.split(':')[1];
-      apiUrl = `http://45.190.208.48:7070/consulta?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
+      apiUrl = `${BASE_URL_PANEL}?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
+
     } else if (endpointStore.startsWith('brasilpro:')) {
       const param = endpointStore.split(':')[1];
       apiUrl = `http://apisbrasilpro.site/api/busca_${param}.php?${param}=${encodedValue}`;
@@ -147,11 +165,32 @@ serve(async (req) => {
         throw new Error('A resposta do provedor é inválida ou vazia.');
       }
 
-      // Checar se o provedor retornou erro no JSON
-      if (responseData.erro || responseData.error || (responseData.status === false && responseData.msg)) {
-         const msg = responseData.msg || responseData.erro || responseData.error || 'Nenhum registro encontrado.';
+      // Checar se o provedor retornou erro no JSON (Busca proativa de chaves de erro comuns)
+      const errorKeys = ['erro', 'error', 'msg', 'mensagem', 'message', 'status'];
+      let isError = false;
+      let errorMsg = 'Nenhum registro encontrado.';
+
+      // Busca insensível a maiúsculas/minúsculas
+      for (const key of Object.keys(responseData)) {
+        const k = key.toLowerCase();
+        if (errorKeys.includes(k)) {
+          const val = responseData[key];
+          if (k === 'status' && (val === false || String(val) === '0' || String(val).toLowerCase() === 'error')) {
+            isError = true;
+          } else if (k !== 'status' && val && String(val).length > 2) {
+            // Se tiver uma mensagem de erro explícita
+            if (String(val).toLowerCase().includes('erro') || String(val).toLowerCase().includes('falha') || String(val).toLowerCase().includes('não encontrado')) {
+              isError = true;
+              errorMsg = String(val);
+            }
+          }
+        }
+      }
+
+      if (isError || responseData.erro || responseData.error) {
+         errorMsg = responseData.msg || responseData.erro || responseData.error || responseData.mensagem || responseData.message || errorMsg;
          return new Response(
-           JSON.stringify({ success: false, notFound: true, message: String(msg), api: api.name }),
+           JSON.stringify({ success: false, notFound: true, message: String(errorMsg), api: api.name }),
            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
          );
       }
@@ -200,17 +239,20 @@ serve(async (req) => {
 
     const cleanData = sanitizeData(responseData);
 
-    // Persistência no Histórico (Usa service role se necessário, mas aqui usa o contexto do user)
+    // Persistência no Histórico (Usa service role para garantir a gravação independente de RLS)
     try {
-      await supabaseClient.from('query_history').insert({
-        user_id: user.id,
-        api_id: apiId,
-        query_value: String(queryValue),
-        response_data: cleanData,
-      });
+      const supabaseServiceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (supabaseServiceRole) {
+        const serviceClient = createClient(supabaseUrl!, supabaseServiceRole);
+        await serviceClient.from('query_history').insert({
+          user_id: user.id,
+          api_id: apiId,
+          query_value: String(queryValue),
+          response_data: cleanData,
+        });
+      }
     } catch (dbError) {
-      console.error('History Save Error:', dbError);
-      // Não falha a consulta se o histórico falhar, apenas loga
+      console.error('History Save Error (Logged):', dbError);
     }
 
     // Atualizar Limites

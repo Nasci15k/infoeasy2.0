@@ -37,7 +37,10 @@ export default function Admin() {
     discord_app_id: '',
     discord_public_key: '',
     site_url: '',
+    external_api_token: '',
+    external_api_url: '',
   });
+
   const [savingBots, setSavingBots] = useState(false);
   const [registeringTg, setRegisteringTg] = useState(false);
   const [registeringDc, setRegisteringDc] = useState(false);
@@ -71,7 +74,10 @@ export default function Admin() {
         discord_app_id:    cfg['discord_app_id']    || '',
         discord_public_key: cfg['discord_public_key'] || '',
         site_url:          cfg['site_url']          || 'https://infoseasy.netlify.app',
+        external_api_token: cfg['external_api_token'] || '',
+        external_api_url:   cfg['external_api_url']   || 'http://45.190.208.48:7070/consulta',
       });
+
     };
     loadBotSettings();
   }, [isAdmin]);
@@ -650,7 +656,48 @@ export default function Admin() {
                     </CardContent>
                   </Card>
 
+                  {/* External API Proxy */}
+                  <Card className="border-amber-100 bg-amber-50/30">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Terminal className="h-4 w-4 text-amber-600" />
+                        Provedor de APIs Externas (Painel)
+                      </CardTitle>
+                      <CardDescription>Configure o Token e a URL do servidor de APIs principal (45.190.208.48).</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wide text-slate-500">API Token (Panel)</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type={showTokens['external_api_token'] ? 'text' : 'password'}
+                            value={botSettings.external_api_token}
+                            onChange={e => setBotSettings(p => ({ ...p, external_api_token: e.target.value }))}
+                            placeholder="PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk"
+                            className="font-mono text-xs flex-1"
+                          />
+                          <Button variant="ghost" size="sm" className="px-2" onClick={() => toggleShowToken('external_api_token')}>
+                            {showTokens['external_api_token'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-wide text-slate-500">URL de Consulta</Label>
+                        <Input
+                          value={botSettings.external_api_url}
+                          onChange={e => setBotSettings(p => ({ ...p, external_api_url: e.target.value }))}
+                          placeholder="http://45.190.208.48:7070/consulta"
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                      <div className="p-3 bg-white/50 border border-amber-200 rounded-xl text-[11px] text-amber-800 leading-relaxed italic">
+                        ⚠️ <b>Atenção:</b> Estes dados são usados mundialmente pelo bot e pelo site para as APIs do tipo "panel:". Mantenha o token sempre atualizado para evitar erros 500.
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   {/* Botão Salvar global */}
+
                   <div className="flex justify-end pt-2 border-t">
                     <Button
                       onClick={handleSaveBotSettings}

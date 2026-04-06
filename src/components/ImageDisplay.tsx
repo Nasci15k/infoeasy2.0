@@ -16,7 +16,7 @@ export function ImageDisplay({ imageUrl, imageData, name, className }: ImageDisp
 
   const getSrc = () => {
     if (imageData) {
-      if (imageData.startsWith('data:image')) {
+      if (imageData.startsWith('data:image') || imageData.startsWith('http')) {
         return imageData;
       }
       // Automagicamente detecta se é JPEG ou PNG (padrão JPEG se não especificado)

@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.register-bots]
 verify_jwt = false
+
+[functions.query-api]
+verify_jwt = false
