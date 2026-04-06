@@ -61,19 +61,31 @@ function jsonToText(obj: any, depth = 0, maxDepth = 6): string {
     return text;
   }
 
-  const blacklist = ['token', 'apikey', 'senha', 'password', 'auth'];
+  const blacklist = [
+    'token', 'apikey', 'senha', 'password', 'auth', 
+    'modulo', 'valor', 'protocolo', 'sucesso', 'usuario',
+    'consumo_hoje', 'reset_em', 'total_diario', 'limites',
+    'status', 'msg', 'message', 'erro', 'error', 'query_value',
+    'cache', 'cached_at', 'cached at', 'conta', 'expiracao', 'expiração',
+    'saldo', 'tempo_segundos', 'segundos', 'tempo segundos'
+  ];
+
   for (const [key, value] of Object.entries(obj)) {
     const k = key.toLowerCase();
-    if (blacklist.some(b => k.includes(b))) continue;
+    if (blacklist.some(b => k === b || k.includes(b))) continue;
     if (typeof value === 'object' && value !== null) {
-      text += `\n${indent}▸ <b>${formatFieldName(key)}</b>:`;
-      text += jsonToText(value, depth + 1, maxDepth);
+      const nested = jsonToText(value, depth + 1, maxDepth);
+      if (nested.trim()) {
+        text += `\n${indent}▸ <b>${formatFieldName(key)}</b>:`;
+        text += nested;
+      }
     } else {
       text += `\n${indent}• <b>${formatFieldName(key)}</b>: <code>${renderValue(value)}</code>`;
     }
   }
   return text;
 }
+
 
 function getCategoryEmoji(key: string): string {
   const k = key.toLowerCase();
@@ -94,6 +106,7 @@ function getCategoryEmoji(key: string): string {
 function formatProfessionalResponse(data: any, apiName: string, queryValue: string, user: { id: number, name: string }): string {
   let text = `🔍 <b>DOSSIÊ DE INTELIGÊNCIA</b>\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+
   text += `📌 <b>Módulo:</b> <code>${apiName}</code>\n`;
   text += `🔎 <b>Consulta:</b> <code>${queryValue}</code>\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -109,13 +122,24 @@ function formatProfessionalResponse(data: any, apiName: string, queryValue: stri
   }
 
   for (const [emoji, items] of Object.entries(sections)) {
-    const sectionName = items.length > 1 ? 'DADOS ENCONTRADOS' : formatFieldName(items[0].key).toUpperCase();
-    text += `\n${emoji} <b>${sectionName}</b>`;
-    items.forEach((item: any) => {
-      text += jsonToText({ [item.key]: item.value }, 0, 3);
-    });
-    text += `\n`;
+    // Filtrar itens vazios antes de renderizar a seção
+    const sectionBody = items
+      .map((item: any) => jsonToText({ [item.key]: item.value }, 0, 3))
+      .join('').trim();
+    
+    if (sectionBody) {
+      // Se houver apenas um item e o nome da chave for igual ao do módulo, vamos tentar ser mais limpos
+      const firstKey = items[0].key.toLowerCase();
+      const currentModule = apiName.toLowerCase().replace(/\s/g, '');
+      const sectionName = (items.length === 1 && (firstKey.includes(currentModule) || currentModule.includes(firstKey))) 
+        ? 'DADOS ENCONTRADOS' 
+        : formatFieldName(items[0].key).toUpperCase();
+
+      text += `\n${emoji} <b>${sectionName}</b>`;
+      text += `\n${sectionBody}\n`;
+    }
   }
+
 
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
   text += `👤 <b>Usuário:</b> ${mention_html(user.id, user.name)}\n`;
@@ -236,10 +260,12 @@ async function createShareLink(
     if (!ex) break;
     token = generateToken();
   }
+  
+  const expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
   await supabase.from('shared_queries').insert({
-    token, api_name: apiName, query_value: queryValue, response_data: responseData, source,
+    token, api_name: apiName, query_value: queryValue, response_data: responseData, source, expires_at
   });
-  return `${siteUrl}/share/${token}`;
+  return token;
 }
 
 // ──────────────────────────────────────────────
@@ -266,8 +292,25 @@ async function tgDelete(token: string, chatId: number | string, messageId: numbe
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
-  });
+  }).catch(e => console.error('Error deleting message:', e));
 }
+
+// Helper para agendar deleção em grupos
+function scheduleDelete(token: string, chatId: number | string, msgIds: number[], seconds = 60) {
+  // @ts-ignore: EdgeRuntime is available in Supabase
+  if (typeof EdgeRuntime !== 'undefined') {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(new Promise(resolve => {
+      setTimeout(async () => {
+        for (const id of msgIds) {
+          await tgDelete(token, chatId, id);
+        }
+        resolve(null);
+      }, seconds * 1000);
+    }));
+  }
+}
+
 
 async function tgAnswer(token: string, callbackQueryId: string, text = '', showAlert = false) {
   return fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
@@ -277,6 +320,44 @@ async function tgAnswer(token: string, callbackQueryId: string, text = '', showA
   });
 }
 
+async function tgSendPhoto(token: string, chatId: number | string, photo: string, extra: any = {}) {
+  // Se for base64 puro (sem prefixo), adiciona o prefixo
+  let photoData = photo;
+  if (!photo.startsWith('http') && !photo.startsWith('data:')) {
+    photoData = `data:image/jpeg;base64,${photo}`;
+  }
+
+  // Telegram não aceita data URI diretamente no sendPhoto via JSON simples. 
+  // Precisamos converter para Blob ou usar Multipart. 
+  // Alternativa: Se for data URI, o Telegram às vezes aceita se o bot for 'local', mas no Cloud não.
+  // VAMOS USAR UM TRUQUE: Enviar via Form Data.
+  
+  const formData = new FormData();
+  formData.append('chat_id', String(chatId));
+
+  if (photoData.startsWith('data:')) {
+    const [meta, base64Data] = photoData.split(',');
+    const type = meta.split(':')[1].split(';')[0];
+    const binary = atob(base64Data);
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+    const blob = new Blob([array], { type });
+    formData.append('photo', blob, 'photo.jpg');
+  } else {
+    formData.append('photo', photoData);
+  }
+
+  if (extra.caption) formData.append('caption', extra.caption);
+  if (extra.parse_mode) formData.append('parse_mode', extra.parse_mode);
+  if (extra.reply_markup) formData.append('reply_markup', JSON.stringify(extra.reply_markup));
+
+  return fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+
 function mention_html(id: number, name: string): string {
   const safe = name.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m] || m));
   return `<a href="tg://user?id=${id}">${safe}</a>`;
@@ -284,66 +365,184 @@ function mention_html(id: number, name: string): string {
 
 
 // ──────────────────────────────────────────────
-// TELEGRAM: montar menu de categorias (Dashboard)
+// TELEGRAM: Módulos de Interface (Identical to reference)
 // ──────────────────────────────────────────────
-async function buildCategoryMenu(supabase: ReturnType<typeof createClient>, firstName: string) {
-  const { data: categories } = await supabase
-    .from('api_categories').select('id, name, slug, icon').order('name');
-  
-  if (!categories?.length) return { text: 'Nenhuma categoria disponível.', keyboard: [] };
+
+async function buildMainMenu(firstName: string) {
+  const welcome = 
+    `👋 <b>Olá, ${firstName}!</b>\n\n` +
+    `<b>Bem-vindo ao Melhor Bot de Consultas</b> 🤖\n` +
+    `Realize consultas completas com rapidez e total segurança.\n\n` +
+    `📋 <b>Escolha uma opção para começar:</b>`;
+
+  const keyboard = [
+    [{ text: '➕ Adicionar em Grupo', url: 'https://t.me/InfoEasyBot?startgroup=new' }],
+    [
+      { text: '🪪 Consultas', callback_data: 'menu:consultas' },
+      { text: '📢 Canal', url: 'https://t.me/infoseasy' }
+    ],
+    [{ text: '🆘 Suporte', url: 'https://t.me/infoseasy' }]
+  ];
+
+  return { text: welcome, keyboard };
+}
+async function checkForceJoin(tgToken: string, userId: number): Promise<boolean> {
+  try {
+    const channelId = '@infoseasy';
+    const url = `https://api.telegram.org/bot${tgToken}/getChatMember?chat_id=${channelId}&user_id=${userId}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.ok) return true; // Falha na API do Telegram -> permitir por precaução
+    const status = data.result?.status;
+    return ['member', 'administrator', 'creator'].includes(status);
+  } catch {
+    return true;
+  }
+}
+
+async function buildForceJoinMessage() {
+  return {
+    text: `⚠️ <b>ACESSO RESTRITO</b>\n\n` +
+          `Para utilizar o nosso bot, você precisa estar inscrito em nosso canal oficial de avisos.\n\n` +
+          `<i>Isso ajuda a manter o bot online e você sempre atualizado!</i>`,
+    keyboard: [
+      [{ text: '📢 Entrar no Canal', url: 'https://t.me/infoseasy' }],
+      [{ text: '✅ Já entrei!', callback_data: 'menu:main' }]
+    ]
+  };
+}
+
+// ──────────────────────────────────────────────
+// Mapeamento Global de Tipos de Consulta
+// ──────────────────────────────────────────────
+const QUERY_MAPPING: Record<string, string[]> = {
+  cpf: ['CPF', 'SUS', 'Score', 'Duality', 'ISK', 'Situação'],
+  cnpj: ['CNPJ', 'Empresa', 'Corporativo'],
+  nome: ['Nome', 'Mãe', 'Pai'], // Mae integrada em Nome
+  tel: ['Telefone', 'Tel', 'Celular', 'Linha'],
+  email: ['Email', 'E-mail', 'Gmail', 'Outlook'],
+  placa: ['Placa', 'SESP', 'FIPE', 'Veículo', 'Auto'],
+  cep: ['CEP', 'Logradouro', 'Endereço'],
+  rg: ['RG', 'Identidade'],
+  pis: ['PIS', 'PASEP'],
+  score: ['Score', 'Poder Aquisitivo', 'Renda', 'Financeiro'],
+  parente: ['Parentes', 'Vínculos', 'Família'],
+  endereco: ['Endereço', 'Logradouro', 'Rua'],
+  judicial: ['Processos', 'SIEL', 'Credilink', 'Criminal', 'Mandado'],
+  pix: ['PIX', 'Conta', 'Banco'],
+  ip: ['IP', 'Internet', 'Rede'],
+  mac: ['MAC', 'Dispositivo'],
+  bin: ['BIN', 'Cartão'],
+  fotos: ['Foto', 'Imagem', 'Avatar']
+};
+
+async function buildCategoryMenu() {
+  const types = [
+    { label: '👤 CPF', type: 'cpf' },
+    { label: '🏢 CNPJ', type: 'cnpj' },
+    { label: '👤 NOME', type: 'nome' },
+    { label: '📞 TEL', type: 'tel' },
+    { label: '📧 EMAIL', type: 'email' },
+    { label: '🚗 PLACA', type: 'placa' },
+    { label: '📍 CEP', type: 'cep' },
+    { label: '🪪 RG', type: 'rg' },
+    { label: '📋 PIS', type: 'pis' },
+    { label: '💰 SCORE', type: 'score' },
+    { label: '👥 PARENTE', type: 'parente' },
+    { label: '📍 ENDEREÇO', type: 'endereco' },
+    { label: '⚖️ JUDICIAL', type: 'judicial' },
+    { label: '💸 PIX', type: 'pix' },
+    { label: '🌐 IP', type: 'ip' },
+    { label: '🖥️ MAC', type: 'mac' },
+    { label: '💳 BIN', type: 'bin' },
+    { label: '📸 FOTOS', type: 'fotos' }
+  ];
 
   const buttons: any[] = [];
-  // Agrupar botões em linhas de 2
-  for (let i = 0; i < categories.length; i += 2) {
+  for (let i = 0; i < types.length; i += 2) {
+    const row = [
+      { text: types[i].label, callback_data: `cat:${types[i].type}` }
+    ];
+    if (types[i+1]) {
+      row.push({ text: types[i+1].label, callback_data: `cat:${types[i+1].type}` });
+    }
+    buttons.push(row);
+  }
+  buttons.push([{ text: '↩️ Voltar', callback_data: 'menu:main' }]);
+
+  const text = `🪪 <b>Selecione o tipo de consulta:</b>\n<i>Toque em uma opção para ver o exemplo de uso.</i>`;
+  return { text, keyboard: buttons };
+}
+
+async function buildInstructionPage(type: string) {
+  const examples: Record<string, string> = {
+    cpf: '000.000.000-00', cnpj: '00.000.000/0001-00', nome: 'JOAO SILVA',
+    tel: '11999999999', email: 'exemplo@gmail.com', placa: 'ABC1234',
+    cep: '01001-000', rg: '12.345.678-9', pis: '123.45678.90-1',
+    score: '000.000.000-00', parente: '000.000.000-00', endereco: 'Rua Exemplo, 123',
+    judicial: '0000000-00.0000.0.00.0000', pix: '000.000.000-00',
+    ip: '127.0.0.1', mac: 'AA:BB:CC:DD:EE:FF', bin: '123456',
+    fotos: '000.000.000-00'
+  };
+  const example = examples[type] || 'VALOR';
+  const text = 
+    `⚠️ <b>${type.toUpperCase()}</b>\n\n` +
+    `Por favor, utilize o formato correto:\n` +
+    `<code>/${type} ${example}</code>`;
+  
+  const keyboard = [[{ text: '↩️ Voltar', callback_data: 'menu:consultas' }]];
+  return { text, keyboard };
+}
+
+async function buildApiMenu(
+  type: string,
+  queryValue: string,
+  supabase: ReturnType<typeof createClient>
+) {
+  const keywords = QUERY_MAPPING[type] || [type];
+  
+  // Construir query OR complexa
+  let query = supabase.from('apis').select('*').eq('is_active', true);
+  
+  // Filtragem local para simplicidade ou via RPC se ficar complexo
+  const { data: allApis } = await query;
+  
+  const filtered = allApis?.filter(api => {
+    const name = api.name.toLowerCase();
+    const desc = (api.description || '').toLowerCase();
+    return keywords.some(k => name.includes(k.toLowerCase()) || desc.includes(k.toLowerCase()));
+  }) || [];
+
+  if (!filtered.length) {
+    return { text: `Nenhum módulo ativo para <b>${type.toUpperCase()}</b>.`, keyboard: [[{ text: '↩️ Voltar', callback_data: 'menu:consultas' }]] };
+  }
+
+  const buttons: any[] = [];
+  for (let i = 0; i < filtered.length; i += 2) {
     const row = [];
-    row.push({ text: `${categories[i].icon || '🔍'} ${categories[i].name}`, callback_data: `cat:${categories[i].slug}:${categories[i].id}` });
-    if (categories[i+1]) {
-      row.push({ text: `${categories[i+1].icon || '🔍'} ${categories[i+1].name}`, callback_data: `cat:${categories[i+1].slug}:${categories[i+1].id}` });
+    row.push({ 
+      text: `📁 ${filtered[i].name}`, 
+      callback_data: `query:${filtered[i].id}:${encodeURIComponent(queryValue).substring(0, 50)}` 
+    });
+    if (filtered[i+1]) {
+      row.push({ 
+        text: `📁 ${filtered[i+1].name}`, 
+        callback_data: `query:${filtered[i+1].id}:${encodeURIComponent(queryValue).substring(0, 50)}` 
+      });
     }
     buttons.push(row);
   }
 
-  const welcome = 
-    `👋 <b>Olá, ${firstName}!</b>\n\n` +
-    `<b>Bem-vindo ao InfoEasy Bot</b> 🤖\n` +
-    `Realize consultas completas com rapidez e segurança.\n\n` +
-    `📋 <b>Selecione uma categoria para começar:</b>`;
+  buttons.push([{ text: '❌ Cancelar', callback_data: 'menu:main' }]);
 
-  return { text: welcome, keyboard: buttons };
+  const text = 
+    `📂 <b>${type.toUpperCase()}</b>\n` +
+    `🔎 Valor: <code>${queryValue}</code>\n\n` +
+    `<i>Selecione o módulo de consulta abaixo:</i>`;
+
+  return { text, keyboard: buttons };
 }
 
-
-// ──────────────────────────────────────────────
-// TELEGRAM: montar menu de APIs (Bases)
-// ──────────────────────────────────────────────
-async function buildApiMenu(
-  categoryId: string,
-  categoryName: string,
-  queryValue: string,
-  supabase: ReturnType<typeof createClient>
-) {
-  const { data: apis } = await supabase
-    .from('apis').select('id, name, description, group_name')
-    .eq('category_id', categoryId).eq('is_active', true).order('group_name');
-  
-  if (!apis?.length) return { text: 'Nenhum módulo ativo nesta categoria.', keyboard: [] };
-
-  const buttons: any[] = [];
-  apis.forEach((a: any) => {
-    buttons.push([{
-      text: `${a.group_name ? '[' + a.group_name + '] ' : ''}📋 ${a.name}`,
-      callback_data: `query:${a.id}:${encodeURIComponent(queryValue).substring(0, 50)}`,
-    }]);
-  });
-
-
-  buttons.push([{ text: '🔙 Voltar ao menu', callback_data: 'menu:main' }]);
-
-  return {
-    text: `📂 <b>${categoryName}</b>\n🔎 Valor: <code>${queryValue}</code>\n\n<i>Selecione o módulo de consulta abaixo:</i>`,
-    keyboard: buttons,
-  };
-}
 
 
 // ──────────────────────────────────────────────
@@ -365,6 +564,19 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   const siteUrl = cfg['site_url'] || 'https://infoseasy.netlify.app';
 
   if (!tgToken) return;
+
+  // VERIFICAÇÃO DE FORCE JOIN
+  const userId = cb ? cb.from.id : msg.from.id;
+  const isJoined = await checkForceJoin(tgToken, userId);
+  if (!isJoined) {
+    const { text: fjText, keyboard: fjKb } = await buildForceJoinMessage();
+    if (cb) {
+      await tgEdit(tgToken, msg?.chat?.id || cb.message.chat.id, cb.message.message_id, fjText, { reply_markup: { inline_keyboard: fjKb } });
+    } else {
+      await tgSend(tgToken, msg.chat.id, fjText, { reply_markup: { inline_keyboard: fjKb } });
+    }
+    return;
+  }
 
   // ── Callback (botão inline clicado)
 
@@ -390,21 +602,26 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
 
     // Voltar ao menu principal
     if (data === 'menu:main') {
-      const { text, keyboard } = await buildCategoryMenu(supabase, cb.from.first_name);
+      const { text, keyboard } = await buildMainMenu(cb.from.first_name);
       await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
       return;
     }
 
-    // Clicou em uma categoria → pede o valor
-    if (data.startsWith('cat:')) {
-      const [, slug, categoryId] = data.split(':');
-      const { data: cat } = await supabase.from('api_categories').select('name').eq('id', categoryId).single();
-      const helpText = `📂 <b>${cat?.name || slug}</b>\n\nPara consultar, digite:\n<code>/${slug} [valor]</code>\n\n<i>Exemplo: /${slug} 12345678</i>`;
-      await tgEdit(tgToken, chatId, msgId, helpText, { 
-        reply_markup: { inline_keyboard: [[{ text: '🔙 Voltar', callback_data: 'menu:main' }]] } 
-      });
+    // Menu de categorias (achatado)
+    if (data === 'menu:consultas') {
+      const { text, keyboard } = await buildCategoryMenu();
+      await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
       return;
     }
+
+    // Clicou em um tipo de consulta → pede o valor (How-To)
+    if (data.startsWith('cat:')) {
+      const type = data.split(':')[1];
+      const { text, keyboard } = await buildInstructionPage(type);
+      await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
+      return;
+    }
+
 
     // Clicou em uma API → executar consulta
     if (data.startsWith('query:')) {
@@ -413,48 +630,83 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       const queryValue = decodeURIComponent(parts.slice(2).join(':'));
 
       // 1. Mostrar estado de carregamento
-      await tgEdit(tgToken, chatId, msgId, `⏳ <b>Consultando...</b>\n<i>Processando sua solicitação nas bases de inteligência.</i>`);
+      await tgEdit(tgToken, chatId, msgId!, `⏳ <b>Consultando...</b>\n<i>Processando sua solicitação nas bases de inteligência.</i>`);
 
       const result = await doQuery(apiId, queryValue, supabase, cfg);
 
-
       if (!result.success || !result.data) {
         const errorText = `⚠️ <b>ERRO NA CONSULTA</b>\n\n${result.message || 'O provedor retornou erro ou os dados não foram encontrados.'}`;
-        await tgEdit(tgToken, chatId, msgId, errorText, {
+        await tgEdit(tgToken, chatId, msgId!, errorText, {
           reply_markup: { inline_keyboard: [[{ text: '🗑️ Apagar', callback_data: `delete:${userId}` }, { text: '🔙 Menu', callback_data: 'menu:main' }]] }
         });
         return;
       }
 
+      // Procurar foto no resultado
+      let photoFound: string | null = null;
+      const scanForPhoto = (obj: any) => {
+        if (!obj || typeof obj !== 'object') return;
+        for (const [k, v] of Object.entries(obj)) {
+          if (typeof v === 'string' && (v.startsWith('data:image') || (v.length > 500 && /^[a-zA-Z0-9+/=]+$/.test(v)))) {
+            photoFound = v;
+            break;
+          }
+          if (['foto', 'image', 'imagem', 'base64', 'avatar'].includes(k.toLowerCase()) && typeof v === 'string') {
+            photoFound = v;
+            break;
+          }
+          if (typeof v === 'object') scanForPhoto(v);
+        }
+      };
+      scanForPhoto(result.data);
+
       const userObj = { id: cb.from.id, name: cb.from.first_name };
-      const formatted = formatProfessionalResponse(result.data, result.apiName!, queryValue, userObj);
+      let formatted = formatProfessionalResponse(result.data, result.apiName!, queryValue, userObj);
 
-      const commonButtons = [
-        [{ text: '🗑️ Apagar Resultado', callback_data: `delete:${userId}` }],
-        [{ text: '🔄 Nova Consulta', callback_data: 'menu:main' }]
-      ];
+      const inline_keyboard: any[][] = [];
+      
+      // Se for um módulo pesado (ISK) ou o texto for muito longo, gerar link web
+      const isHeavy = result.apiName?.toLowerCase().includes('isk');
+      const isLong  = formatted.length > 3000;
 
-      if (formatted.length <= TELEGRAM_CHAR_LIMIT) {
-        await tgEdit(tgToken, chatId, msgId, formatted, {
-          reply_markup: { inline_keyboard: commonButtons },
-        });
-      } else {
-        const shareLink = await createShareLink(result.apiName!, queryValue, result.data, siteUrl, 'telegram', supabase);
-        const longText = 
-          `✅ <b>${result.apiName}</b> — <code>${queryValue}</code>\n\n` +
-          `📄 <b>RESULTADO COMPLETO ATIVADO</b>\n` +
-          `O relatório gerado é muito extenso para o Telegram.\n\n` +
-          `🔗 <b>Acesse o resultado aqui:</b>\n${shareLink}\n\n` +
-          `⏱ <i>Válido por 15 minutos</i>`;
+      if (isHeavy || isLong) {
+        const shareToken = await createShareLink(result.apiName!, queryValue, result.data, siteUrl, 'telegram', supabase);
+        inline_keyboard.push([{ text: '🌐 Ver Resultado Completo (Web)', url: `${siteUrl}/share/${shareToken}` }]);
         
-        await tgEdit(tgToken, chatId, msgId, longText, {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '🌐 Ver resultado completo', url: shareLink }],
-              ...commonButtons
-            ],
-          },
-        });
+        // No Telegram, mostramos apenas o aviso se for pesado
+        formatted = `🔍 <b>DOSSIÊ DE INTELIGÊNCIA</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `📌 <b>Módulo:</b> <code>${result.apiName}</code>\n` +
+                    `🔎 <b>Consulta:</b> <code>${queryValue}</code>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `📦 <b>RESULTADO DISPONÍVEL NO SITE</b>\n\n` +
+                    `Este módulo contém um volume alto de dados. Para garantir sua melhor visualização e organização, o resultado completo foi gerado no link abaixo.\n\n` +
+                    `⏱ <i>O link expira em 15 minutos!</i>`;
+        
+        // Forçar remoção de fotos em resultados pesados
+        photoFound = null;
+      }
+
+      inline_keyboard.push([{ text: '🗑️ Apagar Resultado', callback_data: `delete:${userId}` }]);
+      inline_keyboard.push([{ text: '🔄 Nova Consulta', callback_data: 'menu:main' }]);
+
+      const res = await (photoFound ? 
+        tgSendPhoto(tgToken, chatId, photoFound, {
+          caption: formatted.substring(0, 1024),
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard }
+        }) : 
+        tgEdit(tgToken, chatId, msgId!, formatted.substring(0, TELEGRAM_CHAR_LIMIT), {
+          reply_markup: { inline_keyboard },
+        })
+      );
+
+      const resData = await res.json();
+      const newMsgId = resData.result?.message_id || msgId;
+
+      // Se for grupo, agenda auto-delete
+      if (cb.message?.chat?.type !== 'private') {
+        scheduleDelete(tgToken, chatId!, [newMsgId], 60);
       }
       return;
     }
@@ -471,7 +723,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
 
   // /start ou /menu
   if (lower === '/start' || lower === '/menu') {
-    const { text: menuText, keyboard } = await buildCategoryMenu(supabase, firstName);
+    const { text: menuText, keyboard } = await buildMainMenu(firstName);
     await tgSend(tgToken, chatId, menuText, { reply_markup: { inline_keyboard: keyboard } });
     return;
   }
@@ -482,7 +734,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
     let cmdList = `📜 <b>LISTA DE COMANDOS — INFOEASY</b>\n`;
     cmdList += `━━━━━━━━━━━━━━━━━\n\n`;
     
-    cats?.forEach(c => {
+    cats?.forEach((c: any) => {
       cmdList += `${c.icon || '🔍'} <code>/${c.slug} [valor]</code>\n`;
     });
 
@@ -508,46 +760,43 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   }
 
   // /consultar <slug> <valor> OU /<slug> <valor>
-  const genericMatch = text.match(/^\/(\w+)(?:\s+(.+))?$/i); // Regex melhorado para capturar sem valor
+  const genericMatch = text.match(/^\/(\w+)(?:\s+(.+))?$/i);
   if (genericMatch) {
     const maybeSlug = genericMatch[1].toLowerCase();
     const value = (genericMatch[2] || '').trim();
 
     const ignored = ['start', 'menu', 'comandos', 'ajuda', 'help'];
     if (!ignored.includes(maybeSlug)) {
-      const { data: cat } = await supabase
-        .from('api_categories')
-        .select('id, name, icon')
-        .eq('slug', maybeSlug)
-        .single();
+      // Correção Universal: Se o comando está no nosso mapeamento, ele deve funcionar.
+      const isQueryType = QUERY_MAPPING[maybeSlug] !== undefined;
 
-      if (cat) {
-        // Se NÃO informou o valor, mostra como usar
+      if (isQueryType) {
+        // Se NÃO informou o valor, mostra como usar (How-To)
         if (!value) {
-          const howTo = 
-            `⚠️ <b>COMO USAR: ${cat.name.toUpperCase()}</b>\n\n` +
-            `Por favor, informe o valor para consulta junto ao comando.\n\n` +
-            `💻 <b>Formato:</b> <code>/${maybeSlug} [valor]</code>\n` +
-            `💡 <b>Exemplo:</b> <code>/${maybeSlug} 12345678</code>`;
-          
-          await tgSend(tgToken, chatId, howTo, {
-            reply_markup: { inline_keyboard: [[{ text: '🔙 Voltar ao Painel', callback_data: 'menu:main' }]] }
-          });
+          const { text: hText, keyboard: hKb } = await buildInstructionPage(maybeSlug);
+          await tgSend(tgToken, chatId, hText, { reply_markup: { inline_keyboard: hKb } });
           return;
         }
 
-        const { text: menuText, keyboard } = await buildApiMenu(cat.id, cat.name, value, supabase);
-        await tgSend(tgToken, chatId, menuText, { reply_markup: { inline_keyboard: keyboard } });
+        // Se informou o valor, mostra o menu de APIs (Bases) filtrado pelo tipo
+        const { text: apiText, keyboard: apiKb } = await buildApiMenu(maybeSlug, value, supabase);
+        const res = await tgSend(tgToken, chatId, apiText, { reply_markup: { inline_keyboard: apiKb } });
+        const resData = await res.json();
+        
+        // Se for grupo, agenda auto-delete
+        if (msg.chat.type !== 'private') {
+           scheduleDelete(tgToken, chatId, [msg.message_id, resData.result?.message_id], 60);
+        }
         return;
       }
     }
   }
 
-  // Qualquer outra mensagem → mostrar menu boas-vindas reduzido
-  const { text: welcome, keyboard } = await buildCategoryMenu(supabase, firstName);
-  await tgSend(tgToken, chatId, welcome, { reply_markup: { inline_keyboard: keyboard } });
-
+  // Qualquer outra mensagem → mostrar menu inicial
+  const { text: welcome, keyboard: mainKb } = await buildMainMenu(firstName);
+  await tgSend(tgToken, chatId, welcome, { reply_markup: { inline_keyboard: mainKb } });
 }
+
 
 // ──────────────────────────────────────────────
 // DISCORD: verificação de assinatura Ed25519
