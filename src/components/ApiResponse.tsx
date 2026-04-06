@@ -272,16 +272,16 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
           const isArr = Array.isArray(value);
 
           return (
-            <div key={key} className={cn("flex items-baseline py-1.5 border-b border-slate-50 last:border-0", (isObj || isArr || String(value).length > 40) && "md:col-span-2 lg:col-span-2")}>
-              <div className="min-w-[120px] text-[11px] font-bold text-slate-500 uppercase tracking-tighter mr-3">
+            <div key={key} className={cn("flex flex-col sm:flex-row items-start sm:items-baseline py-2 sm:py-1.5 border-b border-slate-50 last:border-0", (isObj || isArr || String(value).length > 40) && "md:col-span-2 lg:col-span-2")}>
+              <div className="min-w-[120px] text-[10px] sm:text-[11px] font-bold text-slate-400 sm:text-slate-500 uppercase tracking-tight sm:tracking-tighter mb-1 sm:mb-0 mr-3">
                 {formatFieldName(key)}
               </div>
-              <div className="flex-1">
+              <div className="flex-1 w-full">
                 {!isObj && !isArr ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-black text-slate-900 break-words">{renderValue(value)}</span>
-                    <Button variant="ghost" size="sm" className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100" onClick={() => copyToClipboard(String(value), key)}>
-                      <Copy className="h-2.5 w-2.5 text-slate-300" />
+                  <div className="flex items-center justify-between group/field">
+                    <span className="text-[13px] sm:text-[14px] font-bold sm:font-black text-slate-900 break-words leading-tight">{renderValue(value)}</span>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-100 sm:opacity-0 group-hover/field:opacity-100" onClick={() => copyToClipboard(String(value), key)}>
+                      <Copy className="h-3 w-3 text-slate-400" />
                     </Button>
                   </div>
                 ) : isArr ? (
@@ -330,33 +330,33 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
   if (!displayData) return null;
 
   return (
-    <Card id="relatorio-master" className="mt-8 border border-slate-200 bg-white shadow-xl rounded-[2.5rem] overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-700">
-      <CardHeader className="p-8 md:p-12 bg-slate-50 border-b border-slate-200">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
-          <div className="flex items-center gap-6">
-            <div className="h-20 w-20 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center justify-center">
-              <ShieldCheck className="h-10 w-10 text-blue-800" />
+    <Card id="relatorio-master" className="mt-4 md:mt-8 border border-slate-200 bg-white shadow-xl rounded-2xl md:rounded-[2.5rem] overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-700">
+      <CardHeader className="p-4 md:p-12 bg-slate-50 border-b border-slate-200">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8">
+          <div className="flex items-center gap-3 md:gap-6">
+            <div className="h-12 w-12 md:h-20 md:w-20 rounded-xl md:rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-6 w-6 md:h-10 md:w-10 text-blue-800" />
             </div>
             <div>
-              <h2 className="text-3xl font-black text-slate-950 tracking-tighter uppercase mb-1">Dossiê de Inteligência</h2>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="bg-slate-900 text-white border-none py-1 px-3 text-[10px] font-black">{apiName}</Badge>
-                {displayData._metadata?.cached_at && <span className="text-[10px] font-bold text-slate-400 uppercase">{displayData._metadata.cached_at}</span>}
+              <h2 className="text-xl md:text-3xl font-black text-slate-950 tracking-tighter uppercase mb-0.5 md:mb-1">Dossiê de Inteligência</h2>
+              <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                <Badge className="bg-slate-900 text-white border-none py-0.5 px-2 md:py-1 md:px-3 text-[9px] md:text-[10px] font-black">{apiName}</Badge>
+                {displayData._metadata?.cached_at && <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">{displayData._metadata.cached_at}</span>}
               </div>
             </div>
           </div>
-          <div className="flex gap-3 w-full md:w-auto">
-            <Button onClick={downloadAsTxt} className="h-12 flex-1 md:flex-none px-6 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] uppercase tracking-widest gap-2 transition-transform active:scale-95 shadow-md">
-              <Download className="h-4 w-4" /> Baixar Dossiê (TXT)
+          <div className="flex gap-2 w-full md:w-auto">
+            <Button onClick={downloadAsTxt} className="h-10 md:h-12 flex-1 md:flex-none px-4 md:px-6 rounded-xl md:rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] md:text-[11px] uppercase tracking-wider md:tracking-widest gap-2 transition-transform active:scale-95 shadow-md">
+              <Download className="h-3.5 w-3.5 md:h-4 md:w-4" /> <span className="md:inline">Baixar (TXT)</span>
             </Button>
-            <Button variant="outline" onClick={() => window.print()} className="h-12 w-12 md:w-auto md:px-6 rounded-2xl border-slate-200 hover:bg-slate-100 font-black text-[11px] uppercase tracking-widest gap-2">
-              <Printer className="h-4 w-4" /> <span className="hidden md:inline">Imprimir</span>
+            <Button variant="outline" onClick={() => window.print()} className="h-10 w-10 md:h-12 md:w-auto md:px-6 rounded-xl md:rounded-2xl border-slate-200 hover:bg-slate-100 font-black text-[10px] md:text-[11px] uppercase tracking-widest gap-2">
+              <Printer className="h-3.5 w-3.5 md:h-4 md:w-4" /> <span className="hidden md:inline">Imprimir</span>
             </Button>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="p-8 md:p-12 space-y-12">
+      <CardContent className="p-4 md:p-12 space-y-6 md:space-y-12">
         {catData.map(([label, cat]) => (
           <Collapsible key={label} open={expandedSections.has(label)} onOpenChange={() => toggleSection(label)} className="group space-y-4">
             <CollapsibleTrigger asChild>

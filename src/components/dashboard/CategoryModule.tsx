@@ -182,14 +182,14 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-muted-foreground">{category.description}</p>
+    <div className="space-y-3 md:space-y-4">
+      <div className="flex items-center justify-between mb-2 md:mb-4 px-1">
+        <p className="text-xs md:text-sm text-muted-foreground mr-4 leading-tight">{category.description}</p>
         {selectedApi && getStatusIndicator()}
       </div>
-        <form onSubmit={handleSearch} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor={`api-${category.id}`}>API</Label>
+        <form onSubmit={handleSearch} className="space-y-3 md:space-y-4 bg-muted/20 p-3 md:p-6 rounded-2xl border border-muted/30">
+          <div className="space-y-1.5 md:space-y-2">
+            <Label htmlFor={`api-${category.id}`} className="text-[11px] md:text-sm font-bold uppercase tracking-wider text-muted-foreground">Módulo de Consulta</Label>
             <Select value={selectedApi} onValueChange={setSelectedApi}>
               <SelectTrigger id={`api-${category.id}`}>
                 <SelectValue placeholder="Selecione uma API" />
@@ -223,18 +223,19 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={`query-${category.id}`}>Valor da Consulta</Label>
+          <div className="space-y-1.5 md:space-y-2">
+            <Label htmlFor={`query-${category.id}`} className="text-[11px] md:text-sm font-bold uppercase tracking-wider text-muted-foreground">Valor da Consulta</Label>
             <Input
               id={`query-${category.id}`}
               placeholder="Ex: CPF, CNPJ, Placa..."
+              className="h-11 md:h-12 text-sm md:text-base bg-white border-muted/50 focus:ring-primary shadow-sm"
               value={queryValue}
               onChange={(e) => setQueryValue(e.target.value)}
               disabled={!selectedApi}
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSearching || !selectedApi || !queryValue}>
+          <Button type="submit" className="w-full h-11 md:h-12 font-bold text-sm md:text-base shadow-md transition-all active:scale-[0.98]" disabled={isSearching || !selectedApi || !queryValue}>
             {isSearching ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -269,22 +270,24 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
 
           {/* Modal de compartilhamento */}
           {showShareModal && shareLink && (
-            <div className="relative bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="relative bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 md:p-6 shadow-xl animate-in fade-in zoom-in-95 duration-300">
               <button
                 onClick={() => setShowShareModal(false)}
-                className="absolute top-3 right-3 p-1 rounded-full hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors"
+                className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
               <div className="flex items-center gap-2 mb-3">
-                <Share2 className="h-5 w-5 text-blue-600" />
-                <h3 className="font-bold text-blue-900 text-sm">Link de consulta gerado!</h3>
-                <div className="ml-auto flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                <div className="p-2 bg-blue-600 rounded-lg shadow-blue-200 shadow-md">
+                  <Share2 className="h-4 w-4 text-white" />
+                </div>
+                <h3 className="font-bold text-blue-900 text-xs md:text-sm">Link Público Ativado</h3>
+                <div className="ml-auto flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-white border border-amber-100 px-2.5 py-1 rounded-lg">
                   <Clock className="h-3 w-3" />
                   {shareTimeLeft}
                 </div>
               </div>
-              <p className="text-xs text-blue-600 mb-3">Qualquer pessoa com este link pode ver o resultado — sem precisar de login.</p>
+              <p className="text-[10px] md:text-xs text-blue-600/80 mb-4 font-medium italic border-l-2 border-blue-200 pl-2">Acesso livre sem login — Expira em instantes.</p>
               <div className="flex gap-2">
                 <Input
                   readOnly

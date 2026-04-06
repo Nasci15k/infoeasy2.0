@@ -107,7 +107,7 @@ serve(async (req) => {
     try {
       // Timeout resiliente (Deno 1.x)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 segundos
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos
 
       const response = await fetch(apiUrl, {
         headers: { 
@@ -156,13 +156,13 @@ serve(async (req) => {
          );
       }
 
-    } catch (fetchError) {
+    } catch (fetchError: any) {
       console.error('Fetch error:', fetchError.message);
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: true, 
-          message: fetchError.name === 'AbortError' ? 'Tempo esgotado (Timeout)' : fetchError.message, 
+      message: fetchError.name === 'AbortError' ? 'Tempo esgotado (O provedor demorou mais de 60s)' : fetchError.message, 
           api: api.name 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -229,14 +229,18 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('CRITICAL ERROR:', error);
     return new Response(
       JSON.stringify({ 
+        success: false,
         error: true, 
         message: error instanceof Error ? error.message : 'Erro interno do servidor' 
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 200, // Retornamos 200 para o painel não travar, mas com flag success: false
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });

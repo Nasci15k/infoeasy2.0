@@ -54,11 +54,10 @@ function jsonToText(obj: any, depth = 0, maxDepth = 6): string {
   let text = '';
 
   if (Array.isArray(obj)) {
-    obj.slice(0, 10).forEach((item, i) => {
-      text += `\n${indent}  ┌─ #${i + 1}\n`;
+    obj.slice(0, 5).forEach((item, i) => {
+      text += `\n${indent}<b>#${i + 1}</b>`;
       text += jsonToText(item, depth + 1, maxDepth);
     });
-    if (obj.length > 10) text += `\n${indent}  ... e mais ${obj.length - 10} registros`;
     return text;
   }
 
@@ -67,12 +66,59 @@ function jsonToText(obj: any, depth = 0, maxDepth = 6): string {
     const k = key.toLowerCase();
     if (blacklist.some(b => k.includes(b))) continue;
     if (typeof value === 'object' && value !== null) {
-      text += `\n${indent}▸ ${formatFieldName(key)}:`;
+      text += `\n${indent}▸ <b>${formatFieldName(key)}</b>:`;
       text += jsonToText(value, depth + 1, maxDepth);
     } else {
-      text += `\n${indent}• ${formatFieldName(key)}: ${renderValue(value)}`;
+      text += `\n${indent}• <b>${formatFieldName(key)}</b>: <code>${renderValue(value)}</code>`;
     }
   }
+  return text;
+}
+
+function getCategoryEmoji(key: string): string {
+  const k = key.toLowerCase();
+  if (k.includes('identific') || k.includes('basico') || k.includes('pessoa')) return '👤';
+  if (k.includes('ender') || k.includes('localiz')) return '📍';
+  if (k.includes('parent') || k.includes('familia')) return '👥';
+  if (k.includes('contat') || k.includes('telef') || k.includes('email')) return '📞';
+  if (k.includes('trabalh') || k.includes('profissi') || k.includes('renda')) return '💼';
+  if (k.includes('finance') || k.includes('banc')) return '💰';
+  if (k.includes('veicul') || k.includes('placa') || k.includes('detran')) return '🚗';
+  if (k.includes('saude') || k.includes('vacina')) return '🏥';
+  if (k.includes('process') || k.includes('judici')) return '⚖️';
+  if (k.includes('document') || k.includes('cnh') || k.includes('rg')) return '🪪';
+  if (k.includes('foto') || k.includes('image')) return '🖼';
+  return '📋';
+}
+
+function formatProfessionalResponse(data: any, apiName: string, queryValue: string): string {
+  let text = `🔍 <b>DOSSIÊ INFOEASY</b>\n`;
+  text += `━━━━━━━━━━━━━━━━━\n`;
+  text += `📌 <b>Módulo:</b> <code>${apiName}</code>\n`;
+  text += `🔎 <b>Consulta:</b> <code>${queryValue}</code>\n`;
+  text += `━━━━━━━━━━━━━━━━━\n`;
+
+  const sections: Record<string, any> = {};
+  
+  // Agrupamento básico por palavras-chave (rascunho de separação avançada)
+  for (const [key, value] of Object.entries(data)) {
+    if (key.startsWith('_')) continue;
+    const emoji = getCategoryEmoji(key);
+    if (!sections[emoji]) sections[emoji] = [];
+    sections[emoji].push({ key, value });
+  }
+
+  for (const [emoji, items] of Object.entries(sections)) {
+    text += `\n${emoji} <b>${items.length > 1 ? 'DADOS RELACIONADOS' : formatFieldName(items[0].key).toUpperCase()}</b>\n`;
+    items.forEach((item: any) => {
+      text += jsonToText({ [item.key]: item.value }, 0, 3);
+    });
+    text += `\n`;
+  }
+
+  text += `\n━━━━━━━━━━━━━━━━━\n`;
+  text += `⚡ <i>InfoEasy 2.0 — Inteligência Digital</i>`;
+  
   return text;
 }
 
@@ -118,7 +164,7 @@ async function doQuery(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
     const response = await fetch(apiUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
       signal: controller.signal,
@@ -164,7 +210,7 @@ async function doQuery(
 
     return { success: true, data: sanitize(parsed), apiName: api.name };
   } catch (e: any) {
-    return { success: false, message: e.name === 'AbortError' ? 'Tempo esgotado (timeout).' : e.message };
+    return { success: false, message: e.name === 'AbortError' ? 'Tempo esgotado (O provedor demorou mais de 60s).' : e.message };
   }
 }
 
@@ -239,20 +285,23 @@ async function buildApiMenu(
   supabase: ReturnType<typeof createClient>
 ) {
   const { data: apis } = await supabase
-    .from('apis').select('id, name, description')
-    .eq('category_id', categoryId).eq('is_active', true).order('name');
+    .from('apis').select('id, name, description, group_name')
+    .eq('category_id', categoryId).eq('is_active', true).order('group_name');
   if (!apis?.length) return { text: 'Nenhum módulo ativo nesta categoria.', keyboard: [] };
 
-  // Agrupar por group_name se disponível
-  const buttons = apis.map(a => [{
-    text: `📋 ${a.name}`,
-    callback_data: `query:${a.id}:${encodeURIComponent(queryValue).substring(0, 50)}`,
-  }]);
+  // Agrupar por group_name
+  const buttons: any[] = [];
+  apis.forEach(a => {
+    buttons.push([{
+      text: `${a.group_name ? '[' + a.group_name + '] ' : ''}📋 ${a.name}`,
+      callback_data: `query:${a.id}:${encodeURIComponent(queryValue).substring(0, 50)}`,
+    }]);
+  });
 
   buttons.push([{ text: '🔙 Voltar ao menu', callback_data: 'menu:main' }]);
 
   return {
-    text: `📂 <b>${categoryName}</b>\nValor: <code>${queryValue}</code>\n\nEscolha o módulo de consulta:`,
+    text: `📂 <b>${categoryName}</b>\nValor: <code>${queryValue}</code>\n\nEscolha o módulo de consulta (Temos ${apis.length} opções):`,
     keyboard: buttons,
   };
 }
@@ -300,8 +349,6 @@ async function handleTelegram(
       const apiId = parts[1];
       const queryValue = decodeURIComponent(parts.slice(2).join(':'));
 
-      await tgSend(tgToken, chatId, '⏳ <b>Consultando...</b> Aguarde um momento.');
-
       const result = await doQuery(apiId, queryValue, supabase);
 
       if (!result.success || !result.data) {
@@ -309,7 +356,7 @@ async function handleTelegram(
         return;
       }
 
-      const formatted = `🔍 <b>${result.apiName}</b> — <code>${queryValue}</code>\n\n${jsonToText(result.data)}`;
+      const formatted = formatProfessionalResponse(result.data, result.apiName!, queryValue);
 
       if (formatted.length <= TELEGRAM_CHAR_LIMIT) {
         await tgSend(tgToken, chatId, formatted, {
@@ -320,7 +367,7 @@ async function handleTelegram(
       } else {
         const shareLink = await createShareLink(result.apiName!, queryValue, result.data, siteUrl, 'telegram', supabase);
         await tgSend(tgToken, chatId,
-          `✅ <b>${result.apiName}</b> — <code>${queryValue}</code>\n\n📄 Resultado muito extenso! Acesse o link completo abaixo:\n\n🔗 ${shareLink}\n\n⏱ <i>Link válido por 15 minutos</i>`,
+          `✅ <b>${result.apiName}</b> — <code>${queryValue}</code>\n\n📄 <b>Resultado extenso!</b>\nO relatório completo gerou um arquivo muito grande para o Telegram.\n\n🔗 <b>Acesse aqui:</b> ${shareLink}\n\n⏱ <i>Link válido por 15 minutos</i>`,
           {
             reply_markup: {
               inline_keyboard: [
@@ -352,67 +399,60 @@ async function handleTelegram(
     return;
   }
 
+  // /comandos
+  if (lower === '/comandos') {
+    const { data: cats } = await supabase.from('api_categories').select('name, slug, icon').order('name');
+    let cmdList = `📜 <b>LISTA DE COMANDOS — INFOEASY</b>\n\nUse os comandos abaixo seguidos do valor desejado:\n\n`;
+    
+    cats?.forEach(c => {
+      cmdList += `${c.icon || '🔍'} <code>/${c.slug} [valor]</code>\n`;
+    });
+
+    cmdList += `\n💡 <i>Exemplo: /cpf 12345678901</i>\n`;
+    cmdList += `✅ Mais de 60 APIs integradas!`;
+
+    await tgSend(tgToken, chatId, cmdList);
+    return;
+  }
+
   // /ajuda
   if (lower === '/ajuda' || lower === '/help') {
     await tgSend(tgToken, chatId,
-      `🤖 <b>InfoEasy Bot — Comandos</b>\n\n` +
-      `📌 <b>Uso:</b> <code>/consultar [categoria] [valor]</code>\n\n` +
-      `📂 <b>Categorias disponíveis:</b>\n` +
-      `• <code>/consultar cpf 12345678901</code>\n` +
-      `• <code>/consultar cnpj 00000000000191</code>\n` +
-      `• <code>/consultar placa ABC1234</code>\n` +
-      `• <code>/consultar cep 01310100</code>\n` +
-      `• <code>/consultar telefone 11912345678</code>\n` +
-      `• <code>/consultar nome João Silva</code>\n` +
-      `• <code>/consultar email exemplo@email.com</code>\n\n` +
-      `💡 Ou use <b>/menu</b> para navegar por botões interativos.\n\n` +
-      `🌐 Acesse também: ${siteUrl}`
+      `🤖 <b>Central de Ajuda — InfoEasy</b>\n\n` +
+      `Bem-vindo à plataforma de inteligência digital. Para começar uma consulta, utilize um dos comandos directos como <code>/cpf</code> ou <code>/nome</code>.\n\n` +
+      `❓ <b>Dúvidas sobre o uso:</b> /comandos\n` +
+      `🏠 <b>Menu Principal:</b> /start\n\n` +
+      `🌐 <b>Acesso via Web:</b> ${siteUrl}`
     );
     return;
   }
 
-  // /consultar <slug> <valor>
-  const consultarMatch = text.match(/^\/consultar\s+(\S+)\s+(.+)$/i);
-  if (consultarMatch) {
-    const slug  = consultarMatch[1].toLowerCase();
-    const value = consultarMatch[2].trim();
+  // /consultar <slug> <valor> OU /<slug> <valor>
+  const genericMatch = text.match(/^\/(\w+)\s+(.+)$/i);
+  if (genericMatch) {
+    const maybeSlug = genericMatch[1].toLowerCase();
+    const value = genericMatch[2].trim();
 
-    const { data: cat } = await supabase
-      .from('api_categories').select('id, name').eq('slug', slug).single();
+    if (maybeSlug !== 'start' && maybeSlug !== 'menu' && maybeSlug !== 'comandos' && maybeSlug !== 'ajuda') {
+      const { data: cat } = await supabase
+        .from('api_categories')
+        .select('id, name')
+        .eq('slug', maybeSlug === 'consultar' ? value.split(' ')[0] : maybeSlug)
+        .single();
 
-    if (!cat) {
-      await tgSend(tgToken, chatId, `❌ Categoria <b>${slug}</b> não encontrada.\nUse /menu para ver as categorias.`);
-      return;
+      if (cat) {
+        const finalValue = maybeSlug === 'consultar' ? value.substring(value.indexOf(' ') + 1) : value;
+        const { text: menuText, keyboard } = await buildApiMenu(cat.id, cat.name, finalValue, supabase);
+        await tgSend(tgToken, chatId, menuText, { reply_markup: { inline_keyboard: keyboard } });
+        return;
+      }
     }
-
-    const { text: menuText, keyboard } = await buildApiMenu(cat.id, cat.name, value, supabase);
-    await tgSend(tgToken, chatId, menuText, { reply_markup: { inline_keyboard: keyboard } });
-    return;
-  }
-
-  // Atalhos diretos: /cpf, /cnpj, /placa, etc.
-  const shortcutMatch = text.match(/^\/(cpf|cnpj|placa|cep|telefone|nome|email)\s+(.+)$/i);
-  if (shortcutMatch) {
-    const slug  = shortcutMatch[1].toLowerCase();
-    const value = shortcutMatch[2].trim();
-
-    const { data: cat } = await supabase
-      .from('api_categories').select('id, name').eq('slug', slug).single();
-
-    if (!cat) {
-      await tgSend(tgToken, chatId, `❌ Categoria <b>${slug}</b> não encontrada.\nUse /menu para ver as opções.`);
-      return;
-    }
-
-    const { text: menuText, keyboard } = await buildApiMenu(cat.id, cat.name, value, supabase);
-    await tgSend(tgToken, chatId, menuText, { reply_markup: { inline_keyboard: keyboard } });
-    return;
   }
 
   // Qualquer outra mensagem → mostrar menu
   const { text: menuText, keyboard } = await buildCategoryMenu(supabase);
   await tgSend(tgToken, chatId,
-    `💬 Olá! Para consultar, use <code>/cpf 12345678901</code> ou navegue pelo menu:`,
+    `💬 Olá! Use comandos diretos como <code>/cpf [valor]</code> para buscar.\n\n<i>Dica: digite /comandos para ver todas as opções.</i>`,
     { reply_markup: { inline_keyboard: keyboard } }
   );
 }
