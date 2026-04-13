@@ -16,6 +16,7 @@ import { Navbar } from '@/components/Navbar';
 import { AdminStats } from '@/components/admin/AdminStats';
 import { ApprovalDialog } from '@/components/admin/ApprovalDialog';
 import { SellersTab } from '@/components/admin/SellersTab';
+import { ApiTokensTab } from '@/components/admin/ApiTokensTab';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export default function Admin() {
@@ -311,6 +312,10 @@ export default function Admin() {
                   <Bot className="h-4 w-4 mr-2" />
                   Bots
                 </TabsTrigger>
+                <TabsTrigger value="proxy">
+                  <Terminal className="h-4 w-4 mr-2" />
+                  Vender Proxy
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="stats">
@@ -524,6 +529,10 @@ export default function Admin() {
 
               <TabsContent value="sellers">
                 <SellersTab />
+              </TabsContent>
+
+              <TabsContent value="proxy">
+                <ApiTokensTab />
               </TabsContent>
 
               <TabsContent value="bots">

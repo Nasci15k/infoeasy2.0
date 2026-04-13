@@ -11,6 +11,7 @@ import { PlanExpirationCountdown } from '@/components/PlanExpirationCountdown';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiStatusTab } from '@/components/dashboard/ApiStatusTab';
+import { CheckoutPlans } from '@/components/CheckoutPlans';
 
 export default function Dashboard() {
   const { profile } = useAuth();
@@ -54,12 +55,9 @@ export default function Dashboard() {
       <main className="container mx-auto px-4 py-8">
         
         {isPending && (
-          <Alert className="mb-6 border-warning/50 bg-warning/10">
-            <Clock className="h-4 w-4 text-warning" />
-            <AlertDescription className="text-warning-foreground">
-              Sua conta está aguardando aprovação. Você poderá realizar consultas assim que um administrador aprovar seu cadastro.
-            </AlertDescription>
-          </Alert>
+          <div className="mb-8">
+            <CheckoutPlans />
+          </div>
         )}
 
         <div className="mb-6 grid gap-4 md:grid-cols-3">

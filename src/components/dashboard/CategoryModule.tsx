@@ -204,7 +204,7 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
                   }, {})
                 ).map(([group, groupApis]: [string, any]) => (
                   <div key={group}>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/30 uppercase tracking-wider">
+                    <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground bg-muted/20 uppercase tracking-widest border-b border-t border-muted/30">
                       {group}
                     </div>
                     {groupApis.map((api: any) => (
@@ -224,10 +224,16 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
           </div>
 
           <div className="space-y-1.5 md:space-y-2">
-            <Label htmlFor={`query-${category.id}`} className="text-[11px] md:text-sm font-bold uppercase tracking-wider text-muted-foreground">Valor da Consulta</Label>
+            <Label htmlFor={`query-${category.id}`} className="text-[11px] md:text-sm font-bold uppercase tracking-wider text-muted-foreground">
+              {selectedApi && apis.find(a => a.id === selectedApi)?.requirement 
+                ? `Valor da Consulta (${apis.find(a => a.id === selectedApi)?.requirement})` 
+                : 'Valor da Consulta'}
+            </Label>
             <Input
               id={`query-${category.id}`}
-              placeholder="Ex: CPF, CNPJ, Placa..."
+              placeholder={selectedApi && apis.find(a => a.id === selectedApi)?.requirement 
+                ? `Digite o formato esperado: ${apis.find(a => a.id === selectedApi)?.requirement}` 
+                : "Selecione uma API primeiro..."}
               className="h-11 md:h-12 text-sm md:text-base bg-white border-muted/50 focus:ring-primary shadow-sm"
               value={queryValue}
               onChange={(e) => setQueryValue(e.target.value)}

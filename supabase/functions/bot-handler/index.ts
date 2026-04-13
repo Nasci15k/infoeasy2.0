@@ -10,7 +10,7 @@ const corsHeaders = {
 // Limites de caracteres
 // ──────────────────────────────────────────────
 const TELEGRAM_CHAR_LIMIT = 3800; // margem de segurança abaixo de 4096
-const DISCORD_CHAR_LIMIT  = 1900; // margem abaixo de 2000
+const DISCORD_CHAR_LIMIT = 1900; // margem abaixo de 2000
 
 // ──────────────────────────────────────────────
 // Gerador de token curto
@@ -61,18 +61,25 @@ function jsonToText(obj: any, depth = 0, maxDepth = 6): string {
     return text;
   }
 
-  const blacklist = [
-    'token', 'apikey', 'senha', 'password', 'auth', 
+  const blacklistInternal = [
+    'token', 'apikey', 'senha', 'password', 'auth',
     'modulo', 'valor', 'protocolo', 'sucesso', 'usuario',
     'consumo_hoje', 'reset_em', 'total_diario', 'limites',
     'status', 'msg', 'message', 'erro', 'error', 'query_value',
     'cache', 'cached_at', 'cached at', 'conta', 'expiracao', 'expiração',
-    'saldo', 'tempo_segundos', 'segundos', 'tempo segundos'
+    'saldo', 'tempo_segundos', 'segundos', 'tempo segundos',
+    'data_execucao', 'execucao', 'execução'
   ];
 
   for (const [key, value] of Object.entries(obj)) {
     const k = key.toLowerCase();
-    if (blacklist.some(b => k === b || k.includes(b))) continue;
+
+    // Filtro inteligente: Impedir que "valor_veiculo" seja filtrado por causa de "valor"
+    // Usamos correspondência exata para nomes comuns que podem ser prefixos legítimos
+    const exactInternal = ['valor', 'data', 'status', 'msg', 'message', 'sucesso', 'erro', 'error', 'modulo', 'usuario', 'conta'];
+    const isInternal = exactInternal.includes(k) || blacklistInternal.some(b => k === b || (b.length > 5 && k.includes(b)));
+
+    if (isInternal) continue;
     if (typeof value === 'object' && value !== null) {
       const nested = jsonToText(value, depth + 1, maxDepth);
       if (nested.trim()) {
@@ -103,7 +110,7 @@ function getCategoryEmoji(key: string): string {
   return '📋';
 }
 
-function formatProfessionalResponse(data: any, apiName: string, queryValue: string, user: { id: number, name: string }): string {
+function formatProfessionalResponse(data: any, apiName: string, queryValue: string, user: { id: number, name: string }, botHandle: string = '@InfoEasyBot'): string {
   let text = `🔍 <b>DOSSIÊ DE INTELIGÊNCIA</b>\n`;
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
@@ -112,7 +119,7 @@ function formatProfessionalResponse(data: any, apiName: string, queryValue: stri
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
   const sections: Record<string, any> = {};
-  
+
   // Agrupamento por categorias com emojis do bot.php
   for (const [key, value] of Object.entries(data)) {
     if (key.startsWith('_')) continue;
@@ -126,13 +133,13 @@ function formatProfessionalResponse(data: any, apiName: string, queryValue: stri
     const sectionBody = items
       .map((item: any) => jsonToText({ [item.key]: item.value }, 0, 3))
       .join('').trim();
-    
+
     if (sectionBody) {
       // Se houver apenas um item e o nome da chave for igual ao do módulo, vamos tentar ser mais limpos
       const firstKey = items[0].key.toLowerCase();
       const currentModule = apiName.toLowerCase().replace(/\s/g, '');
-      const sectionName = (items.length === 1 && (firstKey.includes(currentModule) || currentModule.includes(firstKey))) 
-        ? 'DADOS ENCONTRADOS' 
+      const sectionName = (items.length === 1 && (firstKey.includes(currentModule) || currentModule.includes(firstKey)))
+        ? 'DADOS ENCONTRADOS'
         : formatFieldName(items[0].key).toUpperCase();
 
       text += `\n${emoji} <b>${sectionName}</b>`;
@@ -143,8 +150,8 @@ function formatProfessionalResponse(data: any, apiName: string, queryValue: stri
 
   text += `━━━━━━━━━━━━━━━━━━━━━\n`;
   text += `👤 <b>Usuário:</b> ${mention_html(user.id, user.name)}\n`;
-  text += `⚡ <b>Bot:</b> @InfoEasyBot`;
-  
+  text += `⚡ <b>Bot:</b> ${botHandle}`;
+
   return text;
 }
 
@@ -174,24 +181,24 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
-    const response = await fetch(apiUrl, { 
-      headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 
-        'Accept': 'application/json' 
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json'
       },
       signal: controller.signal
     });
-    
+
     clearTimeout(timeoutId);
 
     if (!response.ok) throw new Error(`O provedor retornou erro HTTP ${response.status}`);
 
     const textData = await response.text();
-    
+
     // Checagem de erros SQL/Servidor
     const serverErrorKeywords = ['SQLSTATE', 'General error', 'Connection refused', 'PDOException', 'no such table'];
     if (serverErrorKeywords.some(kw => textData.includes(kw))) {
-       throw new Error('A fonte de dados está instável ou em manutenção.');
+      throw new Error('A fonte de dados está instável ou em manutenção.');
     }
 
     let responseData: any = null;
@@ -231,8 +238,8 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
     }
 
     if (isError || responseData.erro || responseData.error) {
-       errorMsg = responseData.msg || responseData.erro || responseData.error || responseData.mensagem || responseData.message || errorMsg;
-       return { success: false, message: String(errorMsg) };
+      errorMsg = responseData.msg || responseData.erro || responseData.error || responseData.mensagem || responseData.message || errorMsg;
+      return { success: false, message: String(errorMsg) };
     }
 
     return { success: true, data: responseData, apiName: api.name };
@@ -260,7 +267,7 @@ async function createShareLink(
     if (!ex) break;
     token = generateToken();
   }
-  
+
   const expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString();
   await supabase.from('shared_queries').insert({
     token, api_name: apiName, query_value: queryValue, response_data: responseData, source, expires_at
@@ -331,7 +338,7 @@ async function tgSendPhoto(token: string, chatId: number | string, photo: string
   // Precisamos converter para Blob ou usar Multipart. 
   // Alternativa: Se for data URI, o Telegram às vezes aceita se o bot for 'local', mas no Cloud não.
   // VAMOS USAR UM TRUQUE: Enviar via Form Data.
-  
+
   const formData = new FormData();
   formData.append('chat_id', String(chatId));
 
@@ -359,7 +366,7 @@ async function tgSendPhoto(token: string, chatId: number | string, photo: string
 
 
 function mention_html(id: number, name: string): string {
-  const safe = name.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m] || m));
+  const safe = name.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m] || m));
   return `<a href="tg://user?id=${id}">${safe}</a>`;
 }
 
@@ -369,9 +376,9 @@ function mention_html(id: number, name: string): string {
 // ──────────────────────────────────────────────
 
 async function buildMainMenu(firstName: string) {
-  const welcome = 
+  const welcome =
     `👋 <b>Olá, ${firstName}!</b>\n\n` +
-    `<b>Bem-vindo ao Melhor Bot de Consultas</b> 🤖\n` +
+    `<b>Bem-vindo ao InfoEasy Bot </b> 🤖\n` +
     `Realize consultas completas com rapidez e total segurança.\n\n` +
     `📋 <b>Escolha uma opção para começar:</b>`;
 
@@ -403,8 +410,8 @@ async function checkForceJoin(tgToken: string, userId: number): Promise<boolean>
 async function buildForceJoinMessage() {
   return {
     text: `⚠️ <b>ACESSO RESTRITO</b>\n\n` +
-          `Para utilizar o nosso bot, você precisa estar inscrito em nosso canal oficial de avisos.\n\n` +
-          `<i>Isso ajuda a manter o bot online e você sempre atualizado!</i>`,
+      `Para utilizar o nosso bot, você precisa estar inscrito em nosso canal oficial de avisos.\n\n` +
+      `<i>Isso ajuda a manter o bot online e você sempre atualizado!</i>`,
     keyboard: [
       [{ text: '📢 Entrar no Canal', url: 'https://t.me/infoseasy' }],
       [{ text: '✅ Já entrei!', callback_data: 'menu:main' }]
@@ -463,8 +470,8 @@ async function buildCategoryMenu() {
     const row = [
       { text: types[i].label, callback_data: `cat:${types[i].type}` }
     ];
-    if (types[i+1]) {
-      row.push({ text: types[i+1].label, callback_data: `cat:${types[i+1].type}` });
+    if (types[i + 1]) {
+      row.push({ text: types[i + 1].label, callback_data: `cat:${types[i + 1].type}` });
     }
     buttons.push(row);
   }
@@ -485,11 +492,11 @@ async function buildInstructionPage(type: string) {
     fotos: '000.000.000-00'
   };
   const example = examples[type] || 'VALOR';
-  const text = 
+  const text =
     `⚠️ <b>${type.toUpperCase()}</b>\n\n` +
     `Por favor, utilize o formato correto:\n` +
     `<code>/${type} ${example}</code>`;
-  
+
   const keyboard = [[{ text: '↩️ Voltar', callback_data: 'menu:consultas' }]];
   return { text, keyboard };
 }
@@ -500,13 +507,13 @@ async function buildApiMenu(
   supabase: ReturnType<typeof createClient>
 ) {
   const keywords = QUERY_MAPPING[type] || [type];
-  
+
   // Construir query OR complexa
   let query = supabase.from('apis').select('*').eq('is_active', true);
-  
+
   // Filtragem local para simplicidade ou via RPC se ficar complexo
   const { data: allApis } = await query;
-  
+
   const filtered = allApis?.filter(api => {
     const name = api.name.toLowerCase();
     const desc = (api.description || '').toLowerCase();
@@ -520,14 +527,14 @@ async function buildApiMenu(
   const buttons: any[] = [];
   for (let i = 0; i < filtered.length; i += 2) {
     const row = [];
-    row.push({ 
-      text: `📁 ${filtered[i].name}`, 
-      callback_data: `query:${filtered[i].id}:${encodeURIComponent(queryValue).substring(0, 50)}` 
+    row.push({
+      text: `📁 ${filtered[i].name}`,
+      callback_data: `query:${filtered[i].id}:${encodeURIComponent(queryValue).substring(0, 50)}`
     });
-    if (filtered[i+1]) {
-      row.push({ 
-        text: `📁 ${filtered[i+1].name}`, 
-        callback_data: `query:${filtered[i+1].id}:${encodeURIComponent(queryValue).substring(0, 50)}` 
+    if (filtered[i + 1]) {
+      row.push({
+        text: `📁 ${filtered[i + 1].name}`,
+        callback_data: `query:${filtered[i + 1].id}:${encodeURIComponent(queryValue).substring(0, 50)}`
       });
     }
     buttons.push(row);
@@ -535,7 +542,7 @@ async function buildApiMenu(
 
   buttons.push([{ text: '❌ Cancelar', callback_data: 'menu:main' }]);
 
-  const text = 
+  const text =
     `📂 <b>${type.toUpperCase()}</b>\n` +
     `🔎 Valor: <code>${queryValue}</code>\n\n` +
     `<i>Selecione o módulo de consulta abaixo:</i>`;
@@ -550,18 +557,16 @@ async function buildApiMenu(
 // ──────────────────────────────────────────────
 async function handleTelegram(payload: any, supabase: ReturnType<typeof createClient>) {
   const msg = payload.message;
-  const cb  = payload.callback_query;
+  const cb = payload.callback_query;
 
-  // Carregar configurações globais logo no início
-  const supabaseUrl         = Deno.env.get('SUPABASE_URL')!;
-  const supabaseServiceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const serviceClient       = createClient(supabaseUrl, supabaseServiceRole);
-  const { data: settings }  = await serviceClient.from('bot_settings').select('key, value');
+  // Carregar configurações globais
+  const { data: settings } = await supabase.from('bot_settings').select('key, value');
   const cfg: Record<string, string> = {};
   settings?.forEach((s: any) => { cfg[s.key] = s.value; });
 
   const tgToken = cfg['telegram_token'];
   const siteUrl = cfg['site_url'] || 'https://infoseasy.netlify.app';
+  const botHandle = cfg['telegram_username'] ? `@${cfg['telegram_username'].replace('@', '')}` : '@InfoEasyBot';
 
   if (!tgToken) return;
 
@@ -571,7 +576,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   if (!isJoined) {
     const { text: fjText, keyboard: fjKb } = await buildForceJoinMessage();
     if (cb) {
-      await tgEdit(tgToken, msg?.chat?.id || cb.message.chat.id, cb.message.message_id, fjText, { reply_markup: { inline_keyboard: fjKb } });
+      await tgEdit(tgToken, cb.message.chat.id, cb.message.message_id, fjText, { reply_markup: { inline_keyboard: fjKb } });
     } else {
       await tgSend(tgToken, msg.chat.id, fjText, { reply_markup: { inline_keyboard: fjKb } });
     }
@@ -579,14 +584,12 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   }
 
   // ── Callback (botão inline clicado)
-
   if (cb) {
     const chatId = cb.message?.chat?.id;
-    const msgId  = cb.message?.message_id;
-    const userId = cb.from.id;
-    const data   = cb.data || '';
+    const msgId = cb.message?.message_id;
+    const data = cb.data || '';
 
-    // Botão Apagar (Somente quem solicitou)
+    // Botão Apagar
     if (data.startsWith('delete:')) {
       const ownerId = data.split(':')[1];
       if (String(userId) !== ownerId) {
@@ -597,24 +600,20 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       return;
     }
 
-
     await tgAnswer(tgToken, cb.id);
 
-    // Voltar ao menu principal
     if (data === 'menu:main') {
       const { text, keyboard } = await buildMainMenu(cb.from.first_name);
       await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
       return;
     }
 
-    // Menu de categorias (achatado)
     if (data === 'menu:consultas') {
       const { text, keyboard } = await buildCategoryMenu();
       await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
       return;
     }
 
-    // Clicou em um tipo de consulta → pede o valor (How-To)
     if (data.startsWith('cat:')) {
       const type = data.split(':')[1];
       const { text, keyboard } = await buildInstructionPage(type);
@@ -622,91 +621,67 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       return;
     }
 
-
-    // Clicou em uma API → executar consulta
     if (data.startsWith('query:')) {
       const parts = data.split(':');
       const apiId = parts[1];
       const queryValue = decodeURIComponent(parts.slice(2).join(':'));
 
-      // 1. Mostrar estado de carregamento
       await tgEdit(tgToken, chatId, msgId!, `⏳ <b>Consultando...</b>\n<i>Processando sua solicitação nas bases de inteligência.</i>`);
-
       const result = await doQuery(apiId, queryValue, supabase, cfg);
 
       if (!result.success || !result.data) {
-        const errorText = `⚠️ <b>ERRO NA CONSULTA</b>\n\n${result.message || 'O provedor retornou erro ou os dados não foram encontrados.'}`;
-        await tgEdit(tgToken, chatId, msgId!, errorText, {
+        await tgEdit(tgToken, chatId, msgId!, `⚠️ <b>ERRO NA CONSULTA</b>\n\n${result.message || 'Dados não encontrados.'}`, {
           reply_markup: { inline_keyboard: [[{ text: '🗑️ Apagar', callback_data: `delete:${userId}` }, { text: '🔙 Menu', callback_data: 'menu:main' }]] }
         });
         return;
       }
 
-      // Procurar foto no resultado
-      let photoFound: string | null = null;
-      const scanForPhoto = (obj: any) => {
-        if (!obj || typeof obj !== 'object') return;
-        for (const [k, v] of Object.entries(obj)) {
-          if (typeof v === 'string' && (v.startsWith('data:image') || (v.length > 500 && /^[a-zA-Z0-9+/=]+$/.test(v)))) {
-            photoFound = v;
-            break;
-          }
-          if (['foto', 'image', 'imagem', 'base64', 'avatar'].includes(k.toLowerCase()) && typeof v === 'string') {
-            photoFound = v;
-            break;
-          }
-          if (typeof v === 'object') scanForPhoto(v);
-        }
-      };
-      scanForPhoto(result.data);
-
-      const userObj = { id: cb.from.id, name: cb.from.first_name };
-      let formatted = formatProfessionalResponse(result.data, result.apiName!, queryValue, userObj);
-
+      const userObj = { id: userId, name: cb.from.first_name };
+      let formatted = formatProfessionalResponse(result.data, result.apiName!, queryValue, userObj, botHandle);
+      const isHeavy = result.apiName?.toLowerCase().includes('isk') || formatted.length > 3000;
       const inline_keyboard: any[][] = [];
-      
-      // Se for um módulo pesado (ISK) ou o texto for muito longo, gerar link web
-      const isHeavy = result.apiName?.toLowerCase().includes('isk');
-      const isLong  = formatted.length > 3000;
 
-      if (isHeavy || isLong) {
+      if (isHeavy) {
         const shareToken = await createShareLink(result.apiName!, queryValue, result.data, siteUrl, 'telegram', supabase);
-        inline_keyboard.push([{ text: '🌐 Ver Resultado Completo (Web)', url: `${siteUrl}/share/${shareToken}` }]);
-        
-        // No Telegram, mostramos apenas o aviso se for pesado
+        const shortUrl = `${siteUrl}/share/${shareToken}`;
+        inline_keyboard.push([{ text: '🌐 Ver Resultado Completo (Web)', url: shortUrl }]);
+
         formatted = `🔍 <b>DOSSIÊ DE INTELIGÊNCIA</b>\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `📌 <b>Módulo:</b> <code>${result.apiName}</code>\n` +
-                    `🔎 <b>Consulta:</b> <code>${queryValue}</code>\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `📦 <b>RESULTADO DISPONÍVEL NO SITE</b>\n\n` +
-                    `Este módulo contém um volume alto de dados. Para garantir sua melhor visualização e organização, o resultado completo foi gerado no link abaixo.\n\n` +
-                    `⏱ <i>O link expira em 15 minutos!</i>`;
-        
-        // Forçar remoção de fotos em resultados pesados
-        photoFound = null;
+          `━━━━━━━━━━━━━━━━━━━━━\n` +
+          `📌 <b>Módulo:</b> <code>${result.apiName}</code>\n` +
+          `🔎 <b>Consulta:</b> <code>${queryValue}</code>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `📦 <b>RESULTADO DISPONÍVEL NO SITE</b>\n\n` +
+          `Este módulo contém um volume alto de dados. O resultado completo foi gerado no link abaixo.\n\n` +
+          `⏱ <i>O link expira em 15 minutos!</i>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━\n` +
+          `👤 <b>Usuário:</b> ${mention_html(userId, userObj.name)}\n` +
+          `⚡ <b>Bot:</b> ${botHandle}`;
       }
 
-      inline_keyboard.push([{ text: '🗑️ Apagar Resultado', callback_data: `delete:${userId}` }]);
-      inline_keyboard.push([{ text: '🔄 Nova Consulta', callback_data: 'menu:main' }]);
+      inline_keyboard.push([{ text: '🗑️ Apagar Resultado', callback_data: `delete:${userId}` }, { text: '🔄 Nova Consulta', callback_data: 'menu:main' }]);
 
-      const res = await (photoFound ? 
-        tgSendPhoto(tgToken, chatId, photoFound, {
-          caption: formatted.substring(0, 1024),
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard }
-        }) : 
-        tgEdit(tgToken, chatId, msgId!, formatted.substring(0, TELEGRAM_CHAR_LIMIT), {
-          reply_markup: { inline_keyboard },
-        })
+      // Photo check
+      let photoUrl: string | null = null;
+      const scan = (obj: any) => {
+        if (!obj || typeof obj !== 'object' || isHeavy) return;
+        for (const [k, v] of Object.entries(obj)) {
+          if (typeof v === 'string' && (v.startsWith('data:image') || (v.length > 500 && /^[a-zA-Z0-9+/=]+$/.test(v)))) { photoUrl = v; break; }
+          const kl = k.toLowerCase();
+          if (['foto', 'image', 'imagem', 'base64', 'avatar'].includes(kl) && typeof v === 'string') { photoUrl = v; break; }
+          if (typeof v === 'object') scan(v);
+        }
+      };
+      scan(result.data);
+
+      const sent = await (photoUrl ?
+        tgSendPhoto(tgToken, chatId, photoUrl, { caption: formatted.substring(0, 1024), parse_mode: 'HTML', reply_markup: { inline_keyboard } }) :
+        tgEdit(tgToken, chatId, msgId!, formatted.substring(0, TELEGRAM_CHAR_LIMIT), { reply_markup: { inline_keyboard } })
       );
 
-      const resData = await res.json();
-      const newMsgId = resData.result?.message_id || msgId;
-
-      // Se for grupo, agenda auto-delete
+      const resData = await sent.json();
       if (cb.message?.chat?.type !== 'private') {
-        scheduleDelete(tgToken, chatId!, [newMsgId], 60);
+        scheduleDelete(tgToken, chatId!, [resData.result?.message_id || msgId], 60);
       }
       return;
     }
@@ -715,84 +690,51 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
 
   // ── Mensagem de texto
   if (!msg?.text) return;
-
   const chatId = msg.chat.id;
-  const text   = msg.text.trim();
-  const lower  = text.toLowerCase();
+  const text = msg.text.trim();
+  const lower = text.toLowerCase();
   const firstName = msg.from.first_name;
 
-  // /start ou /menu
   if (lower === '/start' || lower === '/menu') {
-    const { text: menuText, keyboard } = await buildMainMenu(firstName);
-    await tgSend(tgToken, chatId, menuText, { reply_markup: { inline_keyboard: keyboard } });
+    const { text: mText, keyboard } = await buildMainMenu(firstName);
+    await tgSend(tgToken, chatId, mText, { reply_markup: { inline_keyboard: keyboard } });
     return;
   }
 
-  // /comandos
   if (lower === '/comandos') {
     const { data: cats } = await supabase.from('api_categories').select('name, slug, icon').order('name');
-    let cmdList = `📜 <b>LISTA DE COMANDOS — INFOEASY</b>\n`;
-    cmdList += `━━━━━━━━━━━━━━━━━\n\n`;
-    
-    cats?.forEach((c: any) => {
-      cmdList += `${c.icon || '🔍'} <code>/${c.slug} [valor]</code>\n`;
-    });
-
-    cmdList += `\n💡 <i>Exemplo: /cpf 12345678901</i>\n`;
-    cmdList += `✅ Mais de 60 APIs integradas!`;
-
-    await tgSend(tgToken, chatId, cmdList, {
-      reply_markup: { inline_keyboard: [[{ text: '🪪 Abrir Painel', callback_data: 'menu:main' }]] }
-    });
+    let cmdList = `📜 <b>LISTA DE COMANDOS — INFOEASY</b>\n━━━━━━━━━━━━━━━━━\n\n`;
+    cats?.forEach((c: any) => { cmdList += `${c.icon || '🔍'} <code>/${c.slug} [valor]</code>\n`; });
+    cmdList += `\n💡 <i>Exemplo: /cpf 12345678901</i>\n✅ Mais de 60 APIs integradas!`;
+    await tgSend(tgToken, chatId, cmdList, { reply_markup: { inline_keyboard: [[{ text: '🪪 Abrir Painel', callback_data: 'menu:main' }]] } });
     return;
   }
 
-  // /ajuda
   if (lower === '/ajuda' || lower === '/help') {
-    await tgSend(tgToken, chatId,
-      `🤖 <b>Central de Ajuda — InfoEasy</b>\n\n` +
-      `Para começar, utilize comandos diretos como <code>/cpf [valor]</code>.\n\n` +
-      `❓ <b>Dúvidas:</b> /comandos\n` +
-      `🏠 <b>Menu:</b> /start\n\n` +
-      `🌐 <b>Web:</b> ${siteUrl}`
-    );
+    await tgSend(tgToken, chatId, `🤖 <b>Central de Ajuda — InfoEasy</b>\n\nPara começar, utilize comandos diretos como <code>/cpf [valor]</code>.\n\n❓ <b>Dúvidas:</b> /comandos\n🏠 <b>Menu:</b> /start\n\n🌐 <b>Web:</b> ${siteUrl}`);
     return;
   }
 
-  // /consultar <slug> <valor> OU /<slug> <valor>
-  const genericMatch = text.match(/^\/(\w+)(?:\s+(.+))?$/i);
+  // Universal Command Routing
+  const genericMatch = text.match(/^\/(\w+)(?:@\w+)?(?:\s+(.+))?$/i);
   if (genericMatch) {
-    const maybeSlug = genericMatch[1].toLowerCase();
-    const value = (genericMatch[2] || '').trim();
-
-    const ignored = ['start', 'menu', 'comandos', 'ajuda', 'help'];
-    if (!ignored.includes(maybeSlug)) {
-      // Correção Universal: Se o comando está no nosso mapeamento, ele deve funcionar.
-      const isQueryType = QUERY_MAPPING[maybeSlug] !== undefined;
-
-      if (isQueryType) {
-        // Se NÃO informou o valor, mostra como usar (How-To)
-        if (!value) {
-          const { text: hText, keyboard: hKb } = await buildInstructionPage(maybeSlug);
-          await tgSend(tgToken, chatId, hText, { reply_markup: { inline_keyboard: hKb } });
-          return;
-        }
-
-        // Se informou o valor, mostra o menu de APIs (Bases) filtrado pelo tipo
-        const { text: apiText, keyboard: apiKb } = await buildApiMenu(maybeSlug, value, supabase);
-        const res = await tgSend(tgToken, chatId, apiText, { reply_markup: { inline_keyboard: apiKb } });
-        const resData = await res.json();
-        
-        // Se for grupo, agenda auto-delete
-        if (msg.chat.type !== 'private') {
-           scheduleDelete(tgToken, chatId, [msg.message_id, resData.result?.message_id], 60);
-        }
+    const slug = genericMatch[1].toLowerCase();
+    const val = (genericMatch[2] || '').trim();
+    if (QUERY_MAPPING[slug]) {
+      if (!val) {
+        const { text: iText, keyboard: iKb } = await buildInstructionPage(slug);
+        await tgSend(tgToken, chatId, iText, { reply_markup: { inline_keyboard: iKb } });
         return;
       }
+      const { text: aText, keyboard: aKb } = await buildApiMenu(slug, val, supabase);
+      const res = await tgSend(tgToken, chatId, aText, { reply_markup: { inline_keyboard: aKb } });
+      const resData = await res.json();
+      if (msg.chat.type !== 'private') scheduleDelete(tgToken, chatId, [msg.message_id, resData.result?.message_id], 60);
+      return;
     }
   }
 
-  // Qualquer outra mensagem → mostrar menu inicial
+  // Fallback
   const { text: welcome, keyboard: mainKb } = await buildMainMenu(firstName);
   await tgSend(tgToken, chatId, welcome, { reply_markup: { inline_keyboard: mainKb } });
 }
@@ -807,19 +749,19 @@ async function verifyDiscordSignature(
   publicKey: string
 ): Promise<boolean> {
   try {
-    const signature  = req.headers.get('x-signature-ed25519') || '';
-    const timestamp  = req.headers.get('x-signature-timestamp') || '';
-    const message    = new TextEncoder().encode(timestamp + body);
-    const sigBytes   = hexToBytes(signature);
-    const keyBytes   = hexToBytes(publicKey);
+    const signature = req.headers.get('x-signature-ed25519') || '';
+    const timestamp = req.headers.get('x-signature-timestamp') || '';
+    const message = new TextEncoder().encode(timestamp + body);
+    const sigBytes = hexToBytes(signature);
+    const keyBytes = hexToBytes(publicKey);
 
     const key = await crypto.subtle.importKey(
-      'raw', keyBytes,
+      'raw', keyBytes as any,
       { name: 'Ed25519', namedCurve: 'Ed25519' },
       false, ['verify']
     );
 
-    return await crypto.subtle.verify({ name: 'Ed25519' }, key, sigBytes, message);
+    return await crypto.subtle.verify({ name: 'Ed25519' }, key, sigBytes as any, message);
   } catch {
     return false;
   }
@@ -1028,16 +970,16 @@ serve(async (req) => {
     const cfg: Record<string, string> = {};
     settings?.forEach(s => { cfg[s.key] = s.value; });
 
-    const siteUrl      = cfg['site_url']          || 'https://infoseasy.netlify.app';
-    const tgToken      = cfg['telegram_token']     || '';
-    const discordToken = cfg['discord_token']      || '';
+    const siteUrl = cfg['site_url'] || 'https://infoseasy.netlify.app';
+    const tgToken = cfg['telegram_token'] || '';
+    const discordToken = cfg['discord_token'] || '';
     const discordPubKey = cfg['discord_public_key'] || '';
 
-    const url  = new URL(req.url);
+    const url = new URL(req.url);
     const type = url.searchParams.get('type');
 
     // Limpeza periódica de links expirados
-    supabase.rpc('cleanup_expired_shared_queries').then(() => {}).catch(() => {});
+    supabase.rpc('cleanup_expired_shared_queries').then(() => { }).catch(() => { });
 
     if (type === 'telegram') {
       if (!tgToken) {
