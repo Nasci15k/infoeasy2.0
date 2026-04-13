@@ -59,13 +59,12 @@ export function ApiTokensTab() {
   const { data: availableApis } = useQuery({
     queryKey: ['admin-available-apis-list'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('apis').select('id, name, endpoint').order('name');
+      const { data, error } = await supabase.from('apis').select('id, name, endpoint, slug').order('name');
       if (error) throw error;
       
-      // Mapear apenas para o modulo (removendo "panel:")
       return data.map(api => ({
         ...api,
-        modulo: api.endpoint.includes(':') ? api.endpoint.split(':')[1] : api.endpoint
+        modulo: api.slug || (api.endpoint.includes(':') ? api.endpoint.split(':')[1] : api.endpoint)
       }));
     }
   });
@@ -291,9 +290,12 @@ export function ApiTokensTab() {
                           onClick={() => toggleApi(api.modulo)}
                         >
                           <Checkbox checked={selectedApis.includes(api.modulo)} onCheckedChange={() => toggleApi(api.modulo)} />
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold">{api.name}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{api.modulo}</span>
+                          <div className="flex flex-col flex-1 overflow-hidden">
+                            <span className="text-xs font-bold truncate">{api.name}</span>
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                              <span className="text-[9px] text-orange-600 font-mono font-bold shrink-0">{api.modulo}</span>
+                              <span className="text-[8px] text-slate-400 font-mono truncate border-l pl-1.5">{api.endpoint}</span>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -459,7 +461,7 @@ export function ApiTokensTab() {
           passando os parâmetros <code className="mx-1 px-1 bg-white border rounded">token</code>, 
           <code className="mx-1 px-1 bg-white border rounded">modulo</code> e 
           <code className="mx-1 px-1 bg-white border rounded">valor</code>. 
-          O parâmetro <code className="italic">modulo</code> deve ser o slug técnico (ex: iseek-cpf).
+          O parâmetro <code className="italic">modulo</code> agora utiliza o <b>slug profissional</b> (ex: cpf-ultra).
         </p>
       </div>
     </div>

@@ -70,6 +70,20 @@ serve(async (req) => {
        return new Response(JSON.stringify({ error: 'Limite diário da API excedido.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
+    // Resolve slug to real endpoint
+    const { data: apiMeta, error: metaError } = await serviceClient
+      .from('apis')
+      .select('endpoint, name')
+      .eq('slug', modulo)
+      .single();
+
+    if (metaError || !apiMeta) {
+       return new Response(JSON.stringify({ error: `O módulo [${modulo}] não existe ou foi renomeado.` }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+    }
+
+    // Get internal provider modulo (e.g. "iseek-cpf" from "panel:iseek-cpf")
+    const providerModulo = apiMeta.endpoint.includes(':') ? apiMeta.endpoint.split(':')[1] : apiMeta.endpoint;
+
     // Get Target API details
     const { data: settings } = await serviceClient.from('bot_settings').select('key, value');
     const cfg: Record<string, string> = {};
@@ -79,7 +93,7 @@ serve(async (req) => {
     const API_BASE_URL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
 
     const encodedValue = encodeURIComponent(valor);
-    const targetUrl = `${API_BASE_URL}?token=${API_TOKEN}&modulo=${modulo}&valor=${encodedValue}`;
+    const targetUrl = `${API_BASE_URL}?token=${API_TOKEN}&modulo=${providerModulo}&valor=${encodedValue}`;
 
     // Execute Request
     const response = await fetch(targetUrl, {
@@ -99,17 +113,52 @@ serve(async (req) => {
        jsonResp = { raw: respData };
     }
 
+    // SANITIZATION: Recursive cleaning function
+    const sanitize = (obj: any): any => {
+      if (typeof obj !== 'object' || obj === null) {
+        if (typeof obj === 'string') {
+          // Replace provider mentions
+          return obj
+            .replace(/iseek/gi, 'InfoEasy')
+            .replace(/duality/gi, 'InfoEasy')
+            .replace(/brasilpro/gi, 'InfoEasy')
+            .replace(/astra/gi, 'InfoEasy')
+            .replace(/pode conter erros/gi, 'Dados verificados')
+            .replace(/consulta realizada com sucesso/gi, 'Busca concluída');
+        }
+        return obj;
+      }
+
+      if (Array.isArray(obj)) {
+        return obj.map(sanitize);
+      }
+
+      const cleaned: any = {};
+      const forbiddenKeys = ['server_time', 'execution_ms', 'provider', 'provider_info', 'source_db', 'raw_response'];
+      
+      for (const key in obj) {
+        if (forbiddenKeys.includes(key.toLowerCase())) continue;
+        
+        // Clean key names if they contain provider names
+        const cleanKey = key.replace(/iseek/gi, '').replace(/provider/gi, 'source');
+        cleaned[cleanKey] = sanitize(obj[key]);
+      }
+      return cleaned;
+    };
+
+    const sanitizedResp = sanitize(jsonResp);
+
     // Update Token Usage & Log
     await serviceClient.from('api_tokens').update({ requests_made: Number(apiToken.requests_made) + 1 }).eq('id', apiToken.id);
     await serviceClient.from('api_logs').insert({ 
       token_id: apiToken.id, 
-      endpoint: modulo,
+      endpoint: modulo, // store the slug used
       query: valor,
       status_code: response.status
     });
 
     // Respond back to client
-    return new Response(JSON.stringify(jsonResp), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify(sanitizedResp), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
