@@ -25,8 +25,8 @@ serve(async (req) => {
     const modulo = url.searchParams.get('modulo');
     const valor = url.searchParams.get('valor');
 
-    if (!token || !modulo || !valor) {
-       return new Response(JSON.stringify({ error: 'Faltam parâmetros requiridos (token, modulo, valor)' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+    if (!token) {
+       return new Response(JSON.stringify({ error: 'Falta o parâmetro [token]' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
     const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
@@ -40,6 +40,18 @@ serve(async (req) => {
 
     if (tokenError || !apiToken || !apiToken.is_active) {
        return new Response(JSON.stringify({ error: 'Token inválido ou inativo.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+    }
+
+    // DOCUMENTATION MODE: If token exists but no modulo/valor, show status
+    if (!modulo || !valor) {
+      return new Response(JSON.stringify({
+        status: 'online',
+        client: apiToken.label,
+        client_name: apiToken.client_name,
+        usage: `${apiToken.requests_made} / ${apiToken.daily_limit}`,
+        allowed_apis: apiToken.allowed_apis,
+        message: 'Para consultar, envie os parâmetros [modulo] e [valor].'
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // granular permission check

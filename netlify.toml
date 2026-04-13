@@ -2,16 +2,5 @@
   command = "npm run build"
   publish = "dist"
 
-[[redirects]]
-  from = "/api"
-  to = "https://qvzoeguwilqurujbnvem.supabase.co/functions/v1/api"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
 [build.environment]
   NODE_VERSION = "18"
