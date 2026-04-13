@@ -314,7 +314,7 @@ export default function Admin() {
                 </TabsTrigger>
                 <TabsTrigger value="proxy">
                   <Terminal className="h-4 w-4 mr-2" />
-                  Vender Proxy
+                  Vender APIs
                 </TabsTrigger>
               </TabsList>
 
