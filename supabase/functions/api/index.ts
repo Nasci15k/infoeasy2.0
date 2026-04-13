@@ -148,12 +148,25 @@ serve(async (req) => {
 
     const sanitizedResp = sanitize(jsonResp);
 
+    // Deep Search for Base64 (Enhanced for nested provider responses)
+    const findBase64 = (obj: any): string | null => {
+      if (!obj || typeof obj !== 'object') return null;
+      if (typeof obj.base64 === 'string') return obj.base64;
+      if (typeof obj.foto === 'string') return obj.foto;
+      if (typeof obj.imagem === 'string') return obj.imagem;
+      
+      for (const key in obj) {
+        const result = findBase64(obj[key]);
+        if (result) return result;
+      }
+      return null;
+    };
+
     // PHOTO RENDERING LOGIC: If ?render=true and it's a photo slug
     if (shouldRender && modulo.startsWith('foto')) {
-      // Look for base64 data in common keys
-      const base64Data = sanitizedResp.base64 || sanitizedResp.foto || sanitizedResp.imagem || sanitizedResp.data?.foto || (sanitizedResp.data && Array.isArray(sanitizedResp.data) && (sanitizedResp.data[0]?.base64 || sanitizedResp.data[0]?.foto));
+      const base64Data = findBase64(sanitizedResp);
       
-      if (base64Data && typeof base64Data === 'string') {
+      if (base64Data) {
         const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
         
         try {
@@ -185,13 +198,16 @@ serve(async (req) => {
       status_code: response.status
     });
 
-    // FINAL RESPONSE WRAPPING as requested by user
+    // FINAL RESPONSE WRAPPING: Intelligent flattening to avoid duplication
+    // If provider already returned a 'data' field, use its content directly
+    const realData = (sanitizedResp.data !== undefined) ? sanitizedResp.data : sanitizedResp;
+
     const finalResponse = {
       consulta: {
         modulo: modulo,
         valor: valor
       },
-      data: sanitizedResp
+      data: realData
     };
 
     return new Response(JSON.stringify(finalResponse), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
