@@ -42,6 +42,18 @@ serve(async (req) => {
        return new Response(JSON.stringify({ error: 'Token inválido ou inativo.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
+    // granular permission check
+    const allowedApis = apiToken.allowed_apis || [];
+    // If list is empty, default to blocked (must explicitly allow)
+    // Or if list contains '*', allow all.
+    if (!allowedApis.includes('*') && !allowedApis.includes(modulo)) {
+       return new Response(JSON.stringify({ 
+         error: 'Seu token não possui permissão para este módulo.', 
+         requested_module: modulo,
+         help: 'Contate o suporte para liberar acesso a este endpoint.'
+       }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+    }
+
     if (apiToken.requests_made >= apiToken.daily_limit) {
        return new Response(JSON.stringify({ error: 'Limite diário da API excedido.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
@@ -77,7 +89,12 @@ serve(async (req) => {
 
     // Update Token Usage & Log
     await serviceClient.from('api_tokens').update({ requests_made: Number(apiToken.requests_made) + 1 }).eq('id', apiToken.id);
-    await serviceClient.from('api_logs').insert({ token_id: apiToken.id, endpoint: modulo });
+    await serviceClient.from('api_logs').insert({ 
+      token_id: apiToken.id, 
+      endpoint: modulo,
+      query: valor,
+      status_code: response.status
+    });
 
     // Respond back to client
     return new Response(JSON.stringify(jsonResp), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
