@@ -24,6 +24,7 @@ serve(async (req) => {
     const token = url.searchParams.get('token');
     const modulo = url.searchParams.get('modulo');
     const valor = url.searchParams.get('valor');
+    const shouldRender = url.searchParams.get('render') === 'true';
 
     if (!token) {
        return new Response(JSON.stringify({ error: 'Falta o parâmetro [token]' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
@@ -56,8 +57,6 @@ serve(async (req) => {
 
     // granular permission check
     const allowedApis = apiToken.allowed_apis || [];
-    // If list is empty, default to blocked (must explicitly allow)
-    // Or if list contains '*', allow all.
     if (!allowedApis.includes('*') && !allowedApis.includes(modulo)) {
        return new Response(JSON.stringify({ 
          error: 'Seu token não possui permissão para este módulo.', 
@@ -81,7 +80,6 @@ serve(async (req) => {
        return new Response(JSON.stringify({ error: `O módulo [${modulo}] não existe ou foi renomeado.` }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
-    // Get internal provider modulo (e.g. "iseek-cpf" from "panel:iseek-cpf")
     const providerModulo = apiMeta.endpoint.includes(':') ? apiMeta.endpoint.split(':')[1] : apiMeta.endpoint;
 
     // Get Target API details
@@ -113,11 +111,10 @@ serve(async (req) => {
        jsonResp = { raw: respData };
     }
 
-    // SANITIZATION: Recursive cleaning function
+    // SANITIZATION & PHOTO RENDERING
     const sanitize = (obj: any): any => {
       if (typeof obj !== 'object' || obj === null) {
         if (typeof obj === 'string') {
-          // Replace provider mentions
           return obj
             .replace(/iseek/gi, 'InfoEasy')
             .replace(/duality/gi, 'InfoEasy')
@@ -134,12 +131,15 @@ serve(async (req) => {
       }
 
       const cleaned: any = {};
-      const forbiddenKeys = ['server_time', 'execution_ms', 'provider', 'provider_info', 'source_db', 'raw_response'];
+      const forbiddenKeys = [
+        'server_time', 'execution_ms', 'provider', 'provider_info', 
+        'source_db', 'raw_response', 'token_info', 'api_info', 
+        'requests_remaining', 'owner', 'reset_interval_minutes', 
+        'minutes_until_reset', 'used_in_period'
+      ];
       
       for (const key in obj) {
         if (forbiddenKeys.includes(key.toLowerCase())) continue;
-        
-        // Clean key names if they contain provider names
         const cleanKey = key.replace(/iseek/gi, '').replace(/provider/gi, 'source');
         cleaned[cleanKey] = sanitize(obj[key]);
       }
@@ -148,16 +148,43 @@ serve(async (req) => {
 
     const sanitizedResp = sanitize(jsonResp);
 
+    // PHOTO RENDERING LOGIC: If ?render=true and it's a photo slug
+    if (shouldRender && modulo.startsWith('foto')) {
+      // Look for base64 data in common keys
+      const base64Data = sanitizedResp.base64 || sanitizedResp.foto || sanitizedResp.imagem || sanitizedResp.data?.foto;
+      
+      if (base64Data && typeof base64Data === 'string') {
+        const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+        
+        try {
+          const binaryString = atob(pureBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          
+          return new Response(bytes, {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'image/jpeg',
+              'Cache-Control': 'public, max-age=86400'
+            }
+          });
+        } catch (e) {
+          console.error("Base64 decode failed:", e);
+        }
+      }
+    }
+
     // Update Token Usage & Log
     await serviceClient.from('api_tokens').update({ requests_made: Number(apiToken.requests_made) + 1 }).eq('id', apiToken.id);
     await serviceClient.from('api_logs').insert({ 
       token_id: apiToken.id, 
-      endpoint: modulo, // store the slug used
+      endpoint: modulo,
       query: valor,
       status_code: response.status
     });
 
-    // Respond back to client
     return new Response(JSON.stringify(sanitizedResp), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
