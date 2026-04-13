@@ -151,7 +151,7 @@ serve(async (req) => {
     // PHOTO RENDERING LOGIC: If ?render=true and it's a photo slug
     if (shouldRender && modulo.startsWith('foto')) {
       // Look for base64 data in common keys
-      const base64Data = sanitizedResp.base64 || sanitizedResp.foto || sanitizedResp.imagem || sanitizedResp.data?.foto;
+      const base64Data = sanitizedResp.base64 || sanitizedResp.foto || sanitizedResp.imagem || sanitizedResp.data?.foto || (sanitizedResp.data && Array.isArray(sanitizedResp.data) && (sanitizedResp.data[0]?.base64 || sanitizedResp.data[0]?.foto));
       
       if (base64Data && typeof base64Data === 'string') {
         const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
@@ -185,7 +185,16 @@ serve(async (req) => {
       status_code: response.status
     });
 
-    return new Response(JSON.stringify(sanitizedResp), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // FINAL RESPONSE WRAPPING as requested by user
+    const finalResponse = {
+      consulta: {
+        modulo: modulo,
+        valor: valor
+      },
+      data: sanitizedResp
+    };
+
+    return new Response(JSON.stringify(finalResponse), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
