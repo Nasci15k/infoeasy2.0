@@ -85,7 +85,25 @@ const mapping = {
   "duality:cpf": "extra-cpf-v2",
   "http://ip-api.com/json/{valor}": "geek-ip-geo",
   "https://api.macvendors.com/{valor}": "geek-mac-brand",
-  "https://lookup.binlist.net/{valor}": "finance-card-bin"
+  "https://lookup.binlist.net/{valor}": "finance-card-bin",
+  "tconect:/api/consulta/cpf/v1?code={valor}": "tconect-cpf-v1",
+  "tconect:/api/consulta/cpf/v2?code={valor}": "tconect-cpf-v2",
+  "tconect:/api/consulta/cpf/v3?code={valor}": "tconect-cpf-v3",
+  "tconect:/api/consulta/cpf/v4?code={valor}": "tconect-cpf-v4",
+  "tconect:/api/consulta/cpf/v5?code={valor}": "tconect-cpf-v5",
+  "tconect:/api/consulta/cpfsus/v1?cpf={valor}": "tconect-cpf-sus",
+  "tconect:/api/consulta/inss/v1?cpf={valor}": "tconect-inss",
+  "tconect:/api/consulta/score/v1?cpf={valor}": "tconect-score",
+  "tconect:/api/consulta/nome/v1?nome={valor}": "tconect-nome",
+  "tconect:/api/consulta/placa/v1?placa={valor}": "tconect-placa-v1",
+  "tconect:/api/consulta/placa/v2?placa={valor}": "tconect-placa-v2",
+  "tconect:/api/consulta/motor/v1?tipo=motor&valor={valor}": "tconect-motor",
+  "tconect:/api/consulta/motor/v1?tipo=chassi&valor={valor}": "tconect-chassi",
+  "tconect:/api/consulta/telefone/v1?telefone={valor}": "tconect-telefone",
+  "tconect:/api/consulta/cep/v1?cep={valor}": "tconect-cep",
+  "tconect:/api/consulta/cnpj/v1?cnpj={valor}": "tconect-cnpj",
+  "tconect:/api/consulta/cnpjFGTS/v2?cnpj={valor}": "tconect-cnpj-fgts",
+  "tconect:/api/consulta/fotope/v1?nome={valor}": "tconect-fotope"
 };
 
 async function run() {

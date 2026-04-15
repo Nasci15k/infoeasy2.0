@@ -173,6 +173,19 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
   if (endpointStore.startsWith('panel:')) {
     const modulo = endpointStore.split(':')[1];
     apiUrl = `${BASE_URL_PANEL}?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
+  } else if (endpointStore.startsWith('tconect:')) {
+    const path = endpointStore.split(':')[1];
+    const tconectToken = cfg['tconect_api_token'] || "PNSAPIS";
+    const tconectBase = cfg['tconect_api_url'] || "http://node.tconect.xyz:1116";
+    
+    apiUrl = `${tconectBase}${path.startsWith('/') ? '' : '/'}${path}`;
+    if (apiUrl.includes('?')) {
+      apiUrl = apiUrl.replace('apikey=SeuToken', `apikey=${tconectToken}`).replace('apikey=SUAKEY', `apikey=${tconectToken}`);
+      if (!apiUrl.includes('apikey=')) apiUrl += `&apikey=${tconectToken}`;
+    } else {
+      apiUrl += `?apikey=${tconectToken}`;
+    }
+    apiUrl = apiUrl.replace('{valor}', encodedValue);
   } else {
     apiUrl = endpointStore.replace('{valor}', encodedValue);
   }

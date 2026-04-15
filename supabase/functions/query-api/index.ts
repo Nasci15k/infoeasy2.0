@@ -111,6 +111,30 @@ serve(async (req) => {
     } else if (endpointStore.startsWith('duality:')) {
       const apiName = endpointStore.split(':')[1];
       apiUrl = `https://duality.lat/?token=${TOKEN_DUALITY}&api=${apiName}&query=${cleanValue}`;
+    } else if (endpointStore.startsWith('tconect:')) {
+      const path = endpointStore.split(':')[1];
+      const tconectToken = cfg['tconect_api_token'] || "PNSAPIS";
+      const tconectBase = cfg['tconect_api_url'] || "http://node.tconect.xyz:1116";
+      
+      // Construir a URL baseada no prefixo tconect:
+      apiUrl = `${tconectBase}${path.startsWith('/') ? '' : '/'}${path}`;
+      
+      // Injetar o Token se houver placeholders ou se não estiver presente
+      if (apiUrl.includes('?')) {
+        apiUrl = apiUrl.replace('apikey=SeuToken', `apikey=${tconectToken}`)
+                       .replace('apikey=SUAKEY', `apikey=${tconectToken}`);
+        if (!apiUrl.includes('apikey=')) {
+          apiUrl += `&apikey=${tconectToken}`;
+        }
+      } else {
+        apiUrl += `?apikey=${tconectToken}`;
+      }
+      
+      // Substituir o valor e outros parâmetros
+      apiUrl = apiUrl
+        .replace('{valor}', encodedValue)
+        .replace('{ddd}', valueStr.substring(0, 2))
+        .replace('{telefone}', valueStr.substring(2));
     } else {
       apiUrl = endpointStore
         .replace('{valor}', encodedValue)

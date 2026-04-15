@@ -1,7 +1,7 @@
 import postgres from 'postgres';
 import fs from 'fs';
 
-const sqlText = fs.readFileSync('supabase/migrations/20260413000001_specific_modules.sql', 'utf8');
+const sqlText = fs.readFileSync('supabase/migrations/20260415183500_tconect_apis.sql', 'utf8');
 
 const sql = postgres('postgresql://postgres:Nasci15k777@db.qvzoeguwilqurujbnvem.supabase.co:5432/postgres', {
   ssl: 'require' // SSL required for Supabase outside local
