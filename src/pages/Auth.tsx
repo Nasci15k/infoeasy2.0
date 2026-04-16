@@ -5,261 +5,58 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Shield, Search, Database, Mail, Phone } from 'lucide-react';
-import { TurnstileWidget } from '@/components/TurnstileWidget';
+import { Loader2, Shield, Search, Database, Mail, Activity, CheckCircle2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { useQuery } from '@tanstack/react-query';
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [sellerCode, setSellerCode] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
-  const [turnstileToken, setTurnstileToken] = useState<string | null>('bypassed'); // BYPASS TEMPORÃRIO
-  const [turnstileError, setTurnstileError] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const verifyTurnstile = async (token: string): Promise<boolean> => {
-    return true; // Cloudflare removido temporariamente
-    
-    if (token.startsWith('dev-mode-token-')) {
-      return true;
+  const { data: stats } = useQuery({
+    queryKey: ['platform-stats'],
+    queryFn: async () => {
+      const { count: apiCount } = await supabase.from('apis').select('*', { count: 'exact', head: true });
+      const { count: catCount } = await supabase.from('api_categories').select('*', { count: 'exact', head: true });
+      return { apis: apiCount || 0, modules: catCount || 0 };
     }
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-turnstile', {
-        body: { token },
-      });
-      
-      if (error) {
-        console.error('Turnstile verification error:', error);
-        return false;
-      }
-      
-      return data?.success === true;
-    } catch (error) {
-      console.error('Turnstile verification failed:', error);
-      return false;
-    }
-  };
+  });
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!turnstileToken) {
-      toast({
-        title: 'VerificaÃ§Ã£o necessÃ¡ria',
-        description: 'Complete a verificaÃ§Ã£o de seguranÃ§a antes de continuar.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      const isValid = await verifyTurnstile(turnstileToken);
-      if (!isValid) {
-        toast({
-          title: 'VerificaÃ§Ã£o falhou',
-          description: 'A verificaÃ§Ã£o de seguranÃ§a falhou. Tente novamente.',
-          variant: 'destructive',
-        });
-        setTurnstileToken(null);
-        setIsLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithOtp({
         email,
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        toast({
-          title: 'Login realizado',
-          description: 'Bem-vindo de volta!',
-        });
-        navigate('/');
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Erro no login',
-        description: error.message || 'Credenciais invÃ¡lidas.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!turnstileToken) {
-      toast({
-        title: 'VerificaÃ§Ã£o necessÃ¡ria',
-        description: 'Complete a verificaÃ§Ã£o de seguranÃ§a antes de continuar.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const isValid = await verifyTurnstile(turnstileToken);
-      if (!isValid) {
-        toast({
-          title: 'VerificaÃ§Ã£o falhou',
-          description: 'A verificaÃ§Ã£o de seguranÃ§a falhou. Tente novamente.',
-          variant: 'destructive',
-        });
-        setTurnstileToken(null);
-        setIsLoading(false);
-        return;
-      }
-
-      const redirectUrl = `${window.location.origin}/`;
-      
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
         options: {
-          emailRedirectTo: redirectUrl,
-          data: {
+          data: isSignUp ? {
             full_name: fullName,
             seller_code: sellerCode || null,
-          },
+          } : {},
+          shouldCreateUser: isSignUp,
         },
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        toast({
-          title: 'Cadastro realizado',
-          description: 'Sua conta foi criada e estÃ¡ aguardando aprovaÃ§Ã£o do administrador.',
-        });
-        setEmail('');
-        setPassword('');
-        setFullName('');
-        setSellerCode('');
-        setTurnstileToken(null);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Erro no cadastro',
-        description: error.message || 'NÃ£o foi possÃ­vel criar a conta.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    if (!turnstileToken) {
-      toast({
-        title: 'VerificaÃ§Ã£o necessÃ¡ria',
-        description: 'Complete a verificaÃ§Ã£o de seguranÃ§a antes de continuar.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const isValid = await verifyTurnstile(turnstileToken);
-      if (!isValid) {
-        toast({
-          title: 'VerificaÃ§Ã£o falhou',
-          description: 'A verificaÃ§Ã£o de seguranÃ§a falhou. Tente novamente.',
-          variant: 'destructive',
-        });
-        setTurnstileToken(null);
-        setIsLoading(false);
-        return;
-      }
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/`,
-        },
-      });
-
-      if (error) throw error;
-    } catch (error: any) {
-      toast({
-        title: 'Erro',
-        description: error.message || 'NÃ£o foi possÃ­vel conectar com o Google.',
-        variant: 'destructive',
-      });
-      setIsLoading(false);
-    }
-  };
-
-  const handleSendPhoneOtp = async () => {
-    if (!phoneNumber) {
-      toast({
-        title: 'Telefone obrigatÃ³rio',
-        description: 'Insira um nÃºmero de telefone vÃ¡lido.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!turnstileToken) {
-      toast({
-        title: 'VerificaÃ§Ã£o necessÃ¡ria',
-        description: 'Complete a verificaÃ§Ã£o de seguranÃ§a antes de continuar.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const isValid = await verifyTurnstile(turnstileToken);
-      if (!isValid) {
-        toast({
-          title: 'VerificaÃ§Ã£o falhou',
-          description: 'A verificaÃ§Ã£o de seguranÃ§a falhou. Tente novamente.',
-          variant: 'destructive',
-        });
-        setTurnstileToken(null);
-        setIsLoading(false);
-        return;
-      }
-
-      // Format phone number to E.164
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+55${phoneNumber.replace(/\D/g, '')}`;
-
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: formattedPhone,
       });
 
       if (error) throw error;
 
       setOtpSent(true);
       toast({
-        title: 'CÃ³digo enviado',
-        description: 'Verifique seu telefone e insira o cÃ³digo recebido.',
+        title: 'Código enviado!',
+        description: 'Verifique seu e-mail para o código de 6 dígitos.',
       });
     } catch (error: any) {
       toast({
         title: 'Erro',
-        description: error.message || 'NÃ£o foi possÃ­vel enviar o cÃ³digo.',
+        description: error.message || 'Não foi possível enviar o código.',
         variant: 'destructive',
       });
     } finally {
@@ -267,39 +64,30 @@ export default function Auth() {
     }
   };
 
-  const handleVerifyPhoneOtp = async () => {
-    if (!otp) {
-      toast({
-        title: 'CÃ³digo obrigatÃ³rio',
-        description: 'Insira o cÃ³digo recebido por SMS.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
-    try {
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+55${phoneNumber.replace(/\D/g, '')}`;
 
+    try {
       const { data, error } = await supabase.auth.verifyOtp({
-        phone: formattedPhone,
+        email,
         token: otp,
-        type: 'sms',
+        type: 'email',
       });
 
       if (error) throw error;
 
       if (data.user) {
         toast({
-          title: 'Login realizado',
-          description: 'Bem-vindo!',
+          title: 'Acesso liberado!',
+          description: 'Bem-vindo ao InfoEasy.',
         });
         navigate('/');
       }
     } catch (error: any) {
       toast({
-        title: 'Erro',
-        description: error.message || 'CÃ³digo invÃ¡lido.',
+        title: 'Erro na verificação',
+        description: error.message || 'Código inválido ou expirado.',
         variant: 'destructive',
       });
     } finally {
@@ -307,377 +95,204 @@ export default function Auth() {
     }
   };
 
-  const handleTurnstileVerify = (token: string) => {
-    setTurnstileToken(token);
-    setTurnstileError(false);
-  };
-
-  const handleTurnstileError = () => {
-    setTurnstileToken(null);
-    setTurnstileError(true);
-  };
-
-  const handleTurnstileExpire = () => {
-    setTurnstileToken(null);
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-hero p-4">
-      <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-      <Card className="w-full max-w-md shadow-primary border-primary/20 relative z-10">
-        <CardHeader className="text-center space-y-3 pb-6">
-          <div className="flex justify-center mb-3">
-            <div className="p-4 bg-gradient-brand rounded-2xl shadow-lg">
-              <Shield className="h-10 w-10 text-white" />
+    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] p-4 overflow-hidden relative">
+      <div className="absolute top-0 left-0 w-full h-full bg-grid-pattern opacity-[0.03] pointer-events-none" />
+      
+      {/* Background decoration */}
+      <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-blue-100/50 rounded-full blur-[140px]" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-sky-100/40 rounded-full blur-[120px]" />
+      
+      <div className="w-full max-w-5xl grid lg:grid-cols-2 gap-12 items-center relative z-10 animate-in fade-in zoom-in-95 duration-700">
+        
+        {/* Branding & Marketing Section */}
+        <div className="hidden lg:flex flex-col space-y-10 pr-12">
+            <div className="flex items-center gap-4">
+               <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                  <Shield className="h-7 w-7 text-white" />
+               </div>
+               <h1 className="text-3xl font-black italic text-slate-900 tracking-tighter uppercase">InfoEasy <span className="text-blue-600">2.0</span></h1>
             </div>
-          </div>
-          <CardTitle className="text-3xl font-bold bg-gradient-brand bg-clip-text text-transparent">
-            Info Easy Consultoria
-          </CardTitle>
-          <CardDescription className="text-base">
-            Acesso completo a APIs de dados brasileiros
-          </CardDescription>
-          <div className="flex items-center justify-center gap-4 pt-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Database className="h-3 w-3" />
-              <span>60+ APIs</span>
+            
+            <div className="space-y-4">
+               <h2 className="text-6xl font-black text-slate-900 italic tracking-tighter uppercase leading-[0.9]">
+                  Inteligência de <br /><span className="text-blue-600">Alta Performance</span>
+               </h2>
+               <p className="text-slate-500 text-lg font-medium max-w-md">
+                  O ecossistema definitivo para consultas de dados, análise de risco e inteligência corporativa.
+               </p>
             </div>
-            <div className="flex items-center gap-1">
-              <Search className="h-3 w-3" />
-              <span>Consultas Ilimitadas*</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Shield className="h-3 w-3" />
-              <span>100% Seguro</span>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Cadastro</TabsTrigger>
-            </TabsList>
 
-            <TabsContent value="login">
-              <div className="space-y-4 mt-4">
-                {/* Auth Method Selector */}
-                <div className="flex gap-2">
-                  <Button
+            <div className="grid grid-cols-2 gap-6">
+               <div className="p-6 rounded-[2rem] bg-white shadow-card border border-blue-50/50">
+                  <div className="flex items-center gap-3 mb-2">
+                     <Database className="h-5 w-5 text-blue-600" />
+                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total de APIs</span>
+                  </div>
+                  <h3 className="text-4xl font-black text-slate-900 italic tracking-tighter">+{stats?.apis || 120}</h3>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Fontes Reais & Ativas</p>
+               </div>
+               
+               <div className="p-6 rounded-[2rem] bg-white shadow-card border border-blue-50/50">
+                  <div className="flex items-center gap-3 mb-2">
+                     <Activity className="h-5 w-5 text-blue-600" />
+                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Módulos</span>
+                  </div>
+                  <h3 className="text-4xl font-black text-slate-900 italic tracking-tighter">+{stats?.modules || 12}</h3>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Categorias de Busca</p>
+               </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+               <div className="flex -space-x-4">
+                  {[1,2,3,4].map(i => <div key={i} className="h-10 w-10 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">U{i}</div>)}
+               </div>
+               <p className="text-xs font-bold text-slate-500 italic flex items-center gap-2">
+                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                 Junte-se a centenas de agências e profissionais.
+               </p>
+            </div>
+        </div>
+
+        {/* Auth Card Section */}
+        <Card className="w-full max-w-md bg-white border-white shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] rounded-[3rem] overflow-hidden">
+          <CardHeader className="text-center space-y-2 pt-10 pb-6 lg:hidden">
+            <h1 className="text-3xl font-black italic text-slate-900 tracking-tighter uppercase">InfoEasy <span className="text-blue-600">2.0</span></h1>
+          </CardHeader>
+          
+          <CardHeader className="text-center space-y-2 lg:pt-10">
+            <CardTitle className="text-3xl font-black tracking-tight text-slate-900 uppercase italic">
+              Acesso Restrito
+            </CardTitle>
+            <CardDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">
+               {isSignUp ? 'Crie sua conta profissional' : 'Identifique-se para entrar'}
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="px-10 pb-10 space-y-6">
+            {!otpSent ? (
+              <form onSubmit={handleSendOtp} className="space-y-5">
+                <div className="flex p-1 bg-slate-50 rounded-2xl border border-slate-100 mb-2">
+                  <Button 
                     type="button"
-                    variant={authMethod === 'email' ? 'default' : 'outline'}
-                    className="flex-1"
-                    onClick={() => { setAuthMethod('email'); setOtpSent(false); }}
+                    variant="ghost" 
+                    className={`flex-1 h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!isSignUp ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                    onClick={() => setIsSignUp(false)}
                   >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Email
+                    Entrar
                   </Button>
-                  <Button
+                  <Button 
                     type="button"
-                    variant={authMethod === 'phone' ? 'default' : 'outline'}
-                    className="flex-1"
-                    onClick={() => { setAuthMethod('phone'); setOtpSent(false); }}
+                    variant="ghost" 
+                    className={`flex-1 h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isSignUp ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                    onClick={() => setIsSignUp(true)}
                   >
-                    <Phone className="mr-2 h-4 w-4" />
-                    Telefone
+                    Cadastrar
                   </Button>
                 </div>
 
-                {authMethod === 'email' ? (
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="login-email">Email</Label>
-                      <Input
-                        id="login-email"
-                        type="email"
-                        placeholder="seu@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="login-password">Senha</Label>
-                      <Input
-                        id="login-password"
-                        type="password"
-                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                    {/* Turnstile removido temporariamente
-                    <TurnstileWidget
-                      onVerify={handleTurnstileVerify}
-                      onError={handleTurnstileError}
-                      onExpire={handleTurnstileExpire}
+                {isSignUp && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nome Completo</Label>
+                    <Input
+                      type="text"
+                      placeholder="Seu nome"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      className="bg-slate-50 border-slate-100 h-14 rounded-2xl focus:ring-blue-600 focus:border-blue-600 text-slate-900 font-bold"
                     />
-                    
-                    {turnstileError && (
-                      <p className="text-sm text-destructive text-center">
-                        Erro na verificaÃ§Ã£o. Recarregue a pÃ¡gina e tente novamente.
-                      </p>
-                    )}
-                    */}
-                    
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
-                      disabled={isLoading }
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Entrando...
-                        </>
-                      ) : (
-                        'Entrar'
-                      )}
-                    </Button>
-                  </form>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Telefone</Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        placeholder="(11) 99999-9999"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        disabled={otpSent}
-                      />
-                    </div>
-
-                    {otpSent && (
-                      <div className="space-y-2">
-                        <Label htmlFor="otp">CÃ³digo de VerificaÃ§Ã£o</Label>
-                        <Input
-                          id="otp"
-                          type="text"
-                          placeholder="000000"
-                          value={otp}
-                          onChange={(e) => setOtp(e.target.value)}
-                          maxLength={6}
-                        />
-                      </div>
-                    )}
-
-                    {/* Turnstile removido temporariamente
-                    <TurnstileWidget
-                      onVerify={handleTurnstileVerify}
-                      onError={handleTurnstileError}
-                      onExpire={handleTurnstileExpire}
-                    />
-                    
-                    {turnstileError && (
-                      <p className="text-sm text-destructive text-center">
-                        Erro na verificaÃ§Ã£o. Recarregue a pÃ¡gina e tente novamente.
-                      </p>
-                    )}
-                    */}
-
-                    {!otpSent ? (
-                      <Button 
-                        type="button"
-                        className="w-full" 
-                        disabled={isLoading  || !phoneNumber}
-                        onClick={handleSendPhoneOtp}
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Enviando...
-                          </>
-                        ) : (
-                          'Enviar CÃ³digo SMS'
-                        )}
-                      </Button>
-                    ) : (
-                      <div className="space-y-2">
-                        <Button 
-                          type="button"
-                          className="w-full" 
-                          disabled={isLoading || !otp}
-                          onClick={handleVerifyPhoneOtp}
-                        >
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Verificando...
-                            </>
-                          ) : (
-                            'Verificar CÃ³digo'
-                          )}
-                        </Button>
-                        <Button 
-                          type="button"
-                          variant="ghost"
-                          className="w-full text-sm" 
-                          onClick={() => setOtpSent(false)}
-                        >
-                          Alterar nÃºmero
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 )}
 
-                <div className="relative my-4">
-                  <Separator />
-                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                    ou continue com
-                  </span>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={isLoading }
-                  onClick={handleGoogleLogin}
-                >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  Continuar com Google
-                </Button>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nome Completo</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">E-mail Corporativo</Label>
                   <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="Seu nome"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
                     type="email"
-                    placeholder="seu@email.com"
+                    placeholder="exemplo@infoeasy.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="bg-slate-50 border-slate-100 h-14 rounded-2xl focus:ring-blue-600 focus:border-blue-600 text-slate-900 font-bold"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Senha</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-seller-code">CÃ³digo do Vendedor (opcional)</Label>
-                  <Input
-                    id="signup-seller-code"
-                    type="text"
-                    placeholder="Digite o cÃ³digo se tiver"
-                    value={sellerCode}
-                    onChange={(e) => setSellerCode(e.target.value)}
-                  />
-                </div>
-                {/* Turnstile removido temporariamente
-                <TurnstileWidget
-                  onVerify={handleTurnstileVerify}
-                  onError={handleTurnstileError}
-                  onExpire={handleTurnstileExpire}
-                />
-                
-                {turnstileError && (
-                  <p className="text-sm text-destructive text-center">
-                    Erro na verificaÃ§Ã£o. Recarregue a pÃ¡gina e tente novamente.
-                  </p>
+
+                {isSignUp && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Código Promocional</Label>
+                    <Input
+                      type="text"
+                      placeholder="Opcional"
+                      value={sellerCode}
+                      onChange={(e) => setSellerCode(e.target.value)}
+                      className="bg-slate-50 border-slate-100 h-14 rounded-2xl text-slate-900 font-bold"
+                    />
+                  </div>
                 )}
-                */}
-                
+
                 <Button 
                   type="submit" 
-                  className="w-full" 
-                  disabled={isLoading }
+                  className="w-full h-14 font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all" 
+                  disabled={isLoading}
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Criando conta...
-                    </>
-                  ) : (
-                    'Criar Conta'
-                  )}
+                  {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : isSignUp ? 'Solicitar Acesso' : 'Receber Código'}
                 </Button>
-                <p className="text-xs text-muted-foreground text-center">
-                  ApÃ³s o cadastro, sua conta precisarÃ¡ ser aprovada por um administrador.
-                </p>
 
-                <div className="relative my-4">
-                  <Separator />
-                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                    ou cadastre-se com
-                  </span>
+                <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+                  Autenticação segura via OTP. <br />
+                  Seu acesso será liberado instantaneamente.
+                </p>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="space-y-6 animate-in zoom-in-95 duration-500">
+                <div className="text-center space-y-4">
+                  <div className="h-20 w-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto border border-blue-100/50">
+                    <Mail className="h-10 w-10 text-blue-600" />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 italic uppercase">Verificação</h3>
+                  <p className="text-xs font-bold text-slate-500 lowercase tracking-normal">Código enviado para <span className="text-blue-600">{email}</span></p>
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={isLoading }
-                  onClick={handleGoogleLogin}
+                <div className="space-y-2">
+                  <Input
+                    type="text"
+                    placeholder="000000"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    maxLength={6}
+                    required
+                    className="bg-slate-50 border-slate-200 text-center text-4xl font-black tracking-[0.3em] h-20 rounded-3xl focus:ring-blue-600 placeholder:text-slate-200"
+                  />
+                </div>
+
+                <Button 
+                  type="submit" 
+                  className="w-full h-16 font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 rounded-2xl shadow-xl shadow-blue-500/20"
+                  disabled={isLoading || otp.length < 6}
                 >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  Cadastrar com Google
+                  {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : 'Desbloquear Sistema'}
+                </Button>
+
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  className="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600"
+                  onClick={() => setOtpSent(false)}
+                >
+                  Corrigir E-mail
                 </Button>
               </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+            )}
+
+            <div className="pt-6">
+              <Separator className="bg-slate-100" />
+              <p className="text-[9px] text-center text-slate-400 mt-6 font-black uppercase tracking-[0.2em] italic">
+                InfoEasy Intelligence Hub &copy; 2026
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

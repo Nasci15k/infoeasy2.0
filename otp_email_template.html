@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Inter', Helvetica, Arial, sans-serif; background-color: #0D0B1A; margin: 0; padding: 0; color: #ffffff; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #161426; border: 1px solid #2A2747; border-radius: 24px; overflow: hidden; margin-top: 40px; margin-bottom: 40px; }
+    .header { background: linear-gradient(135deg, #9333EA 0%, #7928CA 100%); padding: 40px 20px; text-align: center; }
+    .content { padding: 40px 30px; text-align: center; }
+    .otp-code { font-size: 48px; font-weight: 900; letter-spacing: 12px; color: #ffffff; background: #0D0B1A; border: 2px solid #9333EA; border-radius: 16px; padding: 20px; margin: 30px 0; display: inline-block; box-shadow: 0 0 20px rgba(147, 51, 234, 0.2); }
+    .footer { padding: 30px; background-color: #0D0B1A; text-align: center; color: #64748b; font-size: 12px; }
+    h1 { margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; }
+    p { color: #94a3b8; line-height: 1.6; }
+    .logo { width: 60px; height: 60px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>INFO EASY</h1>
+      <div style="font-size: 10px; opacity: 0.8; margin-top: 5px;">CONSULTORIA DE INTELIGÊNCIA</div>
+    </div>
+    <div class="content">
+      <h2>Seu código de acesso</h2>
+      <p>Use o código abaixo para confirmar sua identidade e acessar a plataforma.</p>
+      <div class="otp-code">{{ .Token }}</div>
+      <p>Este código expira em 10 minutos. Se você não solicitou este código, ignore este e-mail.</p>
+    </div>
+    <div class="footer">
+      InfoEasy &copy; 2026 - Tecnologia Avançada de Dados<br>
+      Este é um e-mail automático, por favor não responda.
+    </div>
+  </div>
+</body>
+</html>

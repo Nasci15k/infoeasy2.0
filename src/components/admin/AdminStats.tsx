@@ -41,13 +41,6 @@ export function AdminStats() {
       const queriesToday = queries.data?.length || 0;
       const activeApis = apis.data?.filter(a => a.is_active).length || 0;
       
-      // Calcular queries totais (mês)
-      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-      const { data: monthQueries } = await supabase
-        .from('query_history')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', startOfMonth);
-
       return {
         totalUsers: overrideMap['totalUsers'] || profiles.data?.length || 0,
         approved: overrideMap['approved'] || approved,
@@ -75,18 +68,8 @@ export function AdminStats() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
-      toast({
-        title: 'Estatística atualizada',
-        description: 'O valor foi atualizado com sucesso.',
-      });
+      toast({ title: 'Estatística Override', description: 'Valor atualizado com sucesso.' });
       setEditingKey(null);
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Erro ao atualizar',
-        description: error.message,
-        variant: 'destructive',
-      });
     },
   });
 
@@ -99,231 +82,58 @@ export function AdminStats() {
     updateStatMutation.mutate({ key, value: editValue });
   };
 
-  const handleCancel = () => {
-    setEditingKey(null);
-    setEditValue(0);
-  };
-
   const statCards = [
-    { title: 'Total de Usuários', key: 'totalUsers', value: stats?.totalUsers || 0, icon: Users, color: 'text-primary', category: 'usuarios' },
-    { title: 'Aprovados', key: 'approved', value: stats?.approved || 0, icon: UserCheck, color: 'text-success', category: 'usuarios' },
-    { title: 'Pendentes', key: 'pending', value: stats?.pending || 0, icon: Clock, color: 'text-warning', category: 'usuarios' },
-    { title: 'Suspensos', key: 'suspended', value: stats?.suspended || 0, icon: UserX, color: 'text-destructive', category: 'usuarios' },
-    { title: 'Administradores', key: 'admins', value: stats?.admins || 0, icon: Shield, color: 'text-accent', category: 'roles' },
-    { title: 'Usuários Premium', key: 'premium', value: stats?.premium || 0, icon: Star, color: 'text-warning', category: 'roles' },
-    { title: 'Revendedores', key: 'revendedor', value: stats?.revendedor || 0, icon: DollarSign, color: 'text-success', category: 'roles' },
-    { title: 'Em Teste', key: 'teste', value: stats?.teste || 0, icon: Zap, color: 'text-muted-foreground', category: 'roles' },
-    { title: 'Consultas Hoje', key: 'queriesToday', value: stats?.queriesToday || 0, icon: TrendingUp, color: 'text-primary', category: 'consultas' },
-    { title: 'Consultas Este Mês', key: 'queriesMonth', value: stats?.queriesMonth || 0, icon: Activity, color: 'text-secondary', category: 'consultas' },
-    { title: 'Total de APIs', key: 'totalApis', value: stats?.totalApis || 0, icon: Database, color: 'text-accent', category: 'apis' },
-    { title: 'APIs Online', key: 'activeApis', value: stats?.activeApis || 0, icon: Activity, color: 'text-success', category: 'apis' },
+    { title: 'Usuários Totais', key: 'totalUsers', value: stats?.totalUsers || 0, icon: Users, color: 'text-blue-600', category: 'usuarios' },
+    { title: 'Contas Ativas', key: 'approved', value: stats?.approved || 0, icon: UserCheck, color: 'text-emerald-600', category: 'usuarios' },
+    { title: 'Aguardando', key: 'pending', value: stats?.pending || 0, icon: Clock, color: 'text-amber-500', category: 'usuarios' },
+    { title: 'Classes Premium', key: 'premium', value: stats?.premium || 0, icon: Star, color: 'text-blue-600', category: 'roles' },
+    { title: 'Consultas Hoje', key: 'queriesToday', value: stats?.queriesToday || 0, icon: TrendingUp, color: 'text-blue-600', category: 'consultas' },
+    { title: 'Infraestrutura', key: 'activeApis', value: stats?.activeApis || 0, icon: Activity, color: 'text-emerald-600', category: 'apis' },
   ];
 
-  const categories = {
-    usuarios: statCards.filter(s => s.category === 'usuarios'),
-    roles: statCards.filter(s => s.category === 'roles'),
-    consultas: statCards.filter(s => s.category === 'consultas'),
-    apis: statCards.filter(s => s.category === 'apis'),
-  };
-
   return (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            Estatísticas de Usuários
-          </h3>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {categories.usuarios.map((stat) => (
-              <Card key={stat.title} className="shadow-card hover:shadow-primary transition-all group">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {stat.title}
-                  </CardTitle>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </CardHeader>
-                <CardContent>
-                  {editingKey === stat.key ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(parseInt(e.target.value) || 0)}
-                        className="h-8 w-24"
-                      />
-                      <Button size="sm" onClick={() => handleSave(stat.key)} className="h-8 w-8 p-0">
-                        <Save className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={handleCancel} className="h-8 w-8 p-0">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="text-2xl font-bold">{stat.value}</div>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => handleEdit(stat.key, stat.value)}
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <Shield className="h-5 w-5 text-accent" />
-            Classes de Usuários
-          </h3>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {categories.roles.map((stat) => (
-              <Card key={stat.title} className="shadow-card hover:shadow-primary transition-all group">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {stat.title}
-                  </CardTitle>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </CardHeader>
-                <CardContent>
-                  {editingKey === stat.key ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(parseInt(e.target.value) || 0)}
-                        className="h-8 w-24"
-                      />
-                      <Button size="sm" onClick={() => handleSave(stat.key)} className="h-8 w-8 p-0">
-                        <Save className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={handleCancel} className="h-8 w-8 p-0">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="text-2xl font-bold">{stat.value}</div>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => handleEdit(stat.key, stat.value)}
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Estatísticas de Consultas
-          </h3>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {categories.consultas.map((stat) => (
-              <Card key={stat.title} className="shadow-card hover:shadow-primary transition-all group">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {stat.title}
-                  </CardTitle>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </CardHeader>
-                <CardContent>
-                  {editingKey === stat.key ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(parseInt(e.target.value) || 0)}
-                        className="h-8 w-24"
-                      />
-                      <Button size="sm" onClick={() => handleSave(stat.key)} className="h-8 w-8 p-0">
-                        <Save className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={handleCancel} className="h-8 w-8 p-0">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="text-2xl font-bold">{stat.value}</div>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => handleEdit(stat.key, stat.value)}
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <Database className="h-5 w-5 text-accent" />
-            Estatísticas de APIs
-          </h3>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {categories.apis.map((stat) => (
-          <Card key={stat.title} className="shadow-card hover:shadow-primary transition-all group">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+    <div className="space-y-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {statCards.map((stat) => (
+          <Card key={stat.key} className="bg-white border-white shadow-card rounded-[2.5rem] p-8 group hover:border-blue-200 transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between pb-4 p-0">
+              <div className="flex items-center gap-3">
+                 <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                    <stat.icon className="h-5 w-5" />
+                 </div>
+                 <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">{stat.title}</span>
+              </div>
+              {!editingKey && (
+                 <Button variant="ghost" size="sm" onClick={() => handleEdit(stat.key, stat.value)} className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-blue-600">
+                    <Edit2 className="h-3.5 w-3.5" />
+                 </Button>
+              )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0 mt-4">
               {editingKey === stat.key ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 animate-in fade-in zoom-in-95 duration-300">
                   <Input
                     type="number"
                     value={editValue}
                     onChange={(e) => setEditValue(parseInt(e.target.value) || 0)}
-                    className="h-8 w-24"
+                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-black text-slate-900"
                   />
-                  <Button size="sm" onClick={() => handleSave(stat.key)} className="h-8 w-8 p-0">
+                  <Button onClick={() => handleSave(stat.key)} className="h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4">
                     <Save className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" onClick={handleCancel} className="h-8 w-8 p-0">
+                  <Button variant="ghost" onClick={() => setEditingKey(null)} className="h-12 text-slate-400">
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => handleEdit(stat.key, stat.value)}
-                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-black text-slate-900 italic tracking-tighter">{stat.value}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Unidades</span>
                 </div>
               )}
             </CardContent>
           </Card>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

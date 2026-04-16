@@ -37,17 +37,33 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { plan } = body; 
+    const { plan, type, amount: customAmount, dbId } = body; 
     
     let amount = 0;
-    if (plan === 'diario') amount = 9.90;
-    else if (plan === 'semanal') amount = 24.90;
-    else if (plan === 'mensal') amount = 59.90;
-    else {
-      return new Response(JSON.stringify({ error: 'Plano inválido' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    let orderType = type || 'plan'; // 'plan', 'wallet', 'database', 'api_plan'
+    
+    if (orderType === 'plan') {
+      if (plan === 'diario') amount = 9.90;
+      else if (plan === 'semanal') amount = 24.90;
+      else if (plan === 'mensal') amount = 59.90;
+      else throw new Error('Plano inválido');
+    } else if (orderType === 'wallet') {
+      amount = parseFloat(customAmount);
+      if (isNaN(amount) || amount < 1 || amount > 2000) {
+        throw new Error('Valor de recarga inválido (Mín R$1, Máx R$2000)');
+      }
+    } else if (orderType === 'database') {
+      if (!dbId) throw new Error('ID da base de dados não fornecido');
+      const supabaseService = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const { data: dbData } = await supabaseService.from('databases').select('price').eq('id', dbId).single();
+      if (!dbData) throw new Error('Base de dados não encontrada');
+      amount = dbData.price;
+    } else if (orderType === 'api_plan') {
+       // Logic for API plans can be added here
+       amount = parseFloat(customAmount); // For now
     }
 
-    const orderId = `${user.id}_${plan}_${Date.now()}`;
+    const orderId = `${user.id}_${orderType}_${plan || dbId || 'topup'}_${Date.now()}`;
 
     // C7 API Keys
     const C7_API_KEY = Deno.env.get('C7_API_KEY') || 'c7_live_4072...31ac'; // The one provided by user

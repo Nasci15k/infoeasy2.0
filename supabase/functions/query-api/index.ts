@@ -67,7 +67,55 @@ serve(async (req) => {
       );
     }
 
-    // Verificar limites do usuário
+    // 1. Verificar se o usuário tem Plano Ativo
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('balance, plan_type, plan_expires_at')
+      .eq('id', user.id)
+      .single();
+
+    const planExpires = profile?.plan_expires_at ? new Date(profile.plan_expires_at) : null;
+    const isPlanExpired = planExpires && planExpires < new Date();
+    const hasActivePlan = profile?.plan_type && profile.plan_type !== 'free' && !isPlanExpired;
+
+    if (!hasActivePlan) {
+      return new Response(
+        JSON.stringify({ error: 'Você precisa de um plano ativo para realizar consultas. Adquira um plano no painel.' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2. Verificar se a API é VIP e cobrar saldo
+    if (api.is_vip) {
+      const price = api.vip_price || 0;
+      if (Number(profile?.balance || 0) < price) {
+        return new Response(
+          JSON.stringify({ error: `Saldo insuficiente. Esta consulta VIP custa R$ ${price.toFixed(2)}. Recarregue sua carteira.` }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Cobrar saldo usando Service Role para evitar problemas de concorrência ou RLS
+      const supabaseServiceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      const serviceClient = createClient(supabaseUrl!, supabaseServiceRole!);
+      
+      const { error: chargeError } = await serviceClient
+        .from('profiles')
+        .update({ balance: Number(profile.balance) - price })
+        .eq('id', user.id);
+
+      if (chargeError) throw new Error('Falha ao processar pagamento da consulta VIP.');
+
+      // Registrar transação
+      await serviceClient.from('wallet_transactions').insert({
+        user_id: user.id,
+        amount: -price,
+        type: 'query_vip',
+        description: `Consulta VIP: ${api.name}`
+      });
+    }
+
+    // 3. Verificar limites diários (Só se não for VIP ou se quisermos contar ambos)
     const { data: limits } = await supabaseClient
       .from('user_limits')
       .select('*')
@@ -94,7 +142,7 @@ serve(async (req) => {
     settings?.forEach((s: any) => { cfg[s.key] = s.value; });
 
     const TOKEN_PANEL = cfg['external_api_token'] || "PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk";
-    const BASE_URL_PANEL = cfg['external_api_url'] || "http://45.190.208.48:7070/consulta";
+    const BASE_URL_PANEL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
     const TOKEN_DUALITY = "DUALITY-FREE";
 
     const valueStr = String(queryValue);

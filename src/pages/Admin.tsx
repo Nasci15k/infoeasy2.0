@@ -11,12 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserCheck, UserX, Settings, BarChart2, Store, Bot, Save, Loader2, Send, Terminal, Globe, Eye, EyeOff } from 'lucide-react';
+import { Shield, UserCheck, UserX, Settings, BarChart2, Store, Bot, Save, Loader2, Send, Terminal, Globe, Eye, EyeOff, Database, Zap, Users, LayoutDashboard, Search } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { AdminStats } from '@/components/admin/AdminStats';
 import { ApprovalDialog } from '@/components/admin/ApprovalDialog';
 import { SellersTab } from '@/components/admin/SellersTab';
 import { ApiTokensTab } from '@/components/admin/ApiTokensTab';
+import { DatabasesTab } from '@/components/admin/DatabasesTab';
+import { ApiPlansTab } from '@/components/admin/ApiPlansTab';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export default function Admin() {
@@ -30,6 +32,7 @@ export default function Admin() {
   const [monthlyLimit, setMonthlyLimit] = useState(300);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Bot settings state
   const [botSettings, setBotSettings] = useState({
@@ -50,18 +53,12 @@ export default function Admin() {
 
   useEffect(() => {
     if (loading || roleLoading) return;
-
     if (!profile || !isAdmin) {
       navigate('/');
-      toast({
-        title: 'Acesso negado',
-        description: 'Você não tem permissão para acessar esta página.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Acesso restrito', description: 'Área exclusiva para administradores.', variant: 'destructive' });
     }
   }, [profile, isAdmin, loading, roleLoading, navigate, toast]);
 
-  // Carregar configurações dos bots
   useEffect(() => {
     if (!isAdmin) return;
     const loadBotSettings = async () => {
@@ -70,15 +67,14 @@ export default function Admin() {
       const cfg: Record<string, string> = {};
       data.forEach((s: any) => { cfg[s.key] = s.value; });
       setBotSettings({
-        telegram_token:    cfg['telegram_token']    || '',
-        discord_token:     cfg['discord_token']     || '',
-        discord_app_id:    cfg['discord_app_id']    || '',
+        telegram_token: cfg['telegram_token'] || '',
+        discord_token: cfg['discord_token'] || '',
+        discord_app_id: cfg['discord_app_id'] || '',
         discord_public_key: cfg['discord_public_key'] || '',
-        site_url:          cfg['site_url']          || 'https://infoseasy.netlify.app',
+        site_url: cfg['site_url'] || 'https://infoeasy.com.br',
         external_api_token: cfg['external_api_token'] || '',
-        external_api_url:   cfg['external_api_url']   || 'http://45.190.208.48:7070/consulta',
+        external_api_url: cfg['external_api_url'] || '',
       });
-
     };
     loadBotSettings();
   }, [isAdmin]);
@@ -90,7 +86,7 @@ export default function Admin() {
         body: { action: 'save_settings', settings: botSettings },
       });
       if (error) throw error;
-      toast({ title: '✅ Salvo!', description: data?.message || 'Configurações atualizadas.' });
+      toast({ title: 'Configurações Salvas' });
     } catch (err: any) {
       toast({ title: 'Erro ao salvar', description: err?.message, variant: 'destructive' });
     } finally {
@@ -106,9 +102,9 @@ export default function Admin() {
         body: { action: 'register_telegram' },
       });
       if (error) throw error;
-      setRegisterResult({ type: 'telegram', message: data?.message || 'Feito!', success: !!data?.success });
+      setRegisterResult({ type: 'telegram', message: data?.message || 'Webhook configurado!', success: !!data?.success });
     } catch (err: any) {
-      setRegisterResult({ type: 'telegram', message: err?.message || 'Erro desconhecido', success: false });
+      setRegisterResult({ type: 'telegram', message: err?.message, success: false });
     } finally {
       setRegisteringTg(false);
     }
@@ -122,619 +118,285 @@ export default function Admin() {
         body: { action: 'register_discord' },
       });
       if (error) throw error;
-      setRegisterResult({ type: 'discord', message: data?.message || 'Feito!', success: !!data?.success });
+      setRegisterResult({ type: 'discord', message: data?.message || 'Comandos registrados!', success: !!data?.success });
     } catch (err: any) {
-      setRegisterResult({ type: 'discord', message: err?.message || 'Erro desconhecido', success: false });
+      setRegisterResult({ type: 'discord', message: err?.message, success: false });
     } finally {
       setRegisteringDc(false);
     }
   };
 
-  const toggleShowToken = (key: string) =>
-    setShowTokens(prev => ({ ...prev, [key]: !prev[key] }));
-
-  if (loading || roleLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!profile || !isAdmin) {
-    return null;
-  }
+  const toggleShowToken = (key: string) => setShowTokens(prev => ({ ...prev, [key]: !prev[key] }));
 
   const { data: users, refetch: refetchUsers } = useQuery({
     queryKey: ['all-users'],
     queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+      const { data: profiles, error: profilesError } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
       if (profilesError) throw profilesError;
-
-      const { data: limits, error: limitsError } = await supabase
-        .from('user_limits')
-        .select('*');
-      
+      const { data: limits, error: limitsError } = await supabase.from('user_limits').select('*');
       if (limitsError) throw limitsError;
-
       return profiles.map(profile => ({
         ...profile,
         limits: limits.find(l => l.user_id === profile.id),
-        user_role: profile.role || 'teste'
+        user_role: profile.role || 'user'
       }));
     },
-    enabled: isAdmin,
+    enabled: !!isAdmin,
   });
 
-  const handleApproveUser = async (
-    userId: string,
-    planType: 'daily' | 'weekly' | 'monthly',
-    role: string,
-    expiresAt: Date
-  ) => {
+  const filteredUsers = users?.filter(u => 
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    u.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleApproveUser = async (userId: string, planType: string, role: string, expiresAt: Date) => {
     try {
-      // Update profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          status: 'approved',
-          plan_type: planType,
-          plan_expires_at: expiresAt.toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
-
-      if (profileError) throw profileError;
-
-      // No role update needed here as it's already in profiles
-      // If we wanted to update role, it would be in the profile update above.
-      
+      const { error } = await supabase.from('profiles').update({ status: 'approved', plan_type: planType, plan_expires_at: expiresAt.toISOString(), updated_at: new Date().toISOString() }).eq('id', userId);
+      if (error) throw error;
       await refetchUsers();
-
-      toast({
-        title: 'Usuário aprovado',
-        description: `Usuário aprovado como ${role} com plano ${planType}.`,
-      });
+      toast({ title: 'Usuário Aprovado' });
     } catch (error: any) {
-      toast({
-        title: 'Erro ao aprovar usuário',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro ao aprovar', description: error.message, variant: 'destructive' });
     }
   };
 
   const handleSuspendUser = async (userId: string) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: 'suspended', updated_at: new Date().toISOString() })
-        .eq('id', userId);
-
+      const { error } = await supabase.from('profiles').update({ status: 'suspended', updated_at: new Date().toISOString() }).eq('id', userId);
       if (error) throw error;
-
       await refetchUsers();
-
-      toast({
-        title: 'Usuário suspenso',
-        description: 'O usuário foi suspenso com sucesso.',
-      });
+      toast({ title: 'Usuários Suspenso' });
     } catch (error: any) {
-      toast({
-        title: 'Erro ao suspender usuário',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
   };
 
   const updateLimitsMutation = useMutation({
     mutationFn: async ({ userId, daily, monthly }: { userId: string; daily: number; monthly: number }) => {
-      const { error } = await supabase
-        .from('user_limits')
-        .update({ daily_limit: daily, monthly_limit: monthly })
-        .eq('user_id', userId);
-      if (error) {
-        console.error('Update limits error:', error);
-        throw error;
-      }
+      const { error } = await supabase.from('user_limits').update({ daily_limit: daily, monthly_limit: monthly }).eq('user_id', userId);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-users'] });
-      toast({ 
-        title: 'Limites atualizados',
-        description: 'Os limites do usuário foram atualizados com sucesso.'
-      });
+      toast({ title: 'Limites Atualizados' });
       setEditingLimits(null);
-    },
-    onError: (error: any) => {
-      console.error('Mutation error:', error);
-      toast({
-        title: 'Erro ao atualizar limites',
-        description: error.message || 'Não foi possível atualizar os limites.',
-        variant: 'destructive',
-      });
-    },
+    }
   });
 
-  const handleUpdateLimits = (userId: string) => {
-    updateLimitsMutation.mutate({ userId, daily: dailyLimit, monthly: monthlyLimit });
-  };
+  if (loading || roleLoading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin h-10 w-10 text-blue-600" /></div>;
+  if (!profile || !isAdmin) return null;
 
-  if (!profile || !isAdmin) {
-    return null;
-  }
-
-  const pendingUsers = users?.filter(u => u.status === 'pending') || [];
-  const approvedUsers = users?.filter(u => u.status === 'approved') || [];
-  const suspendedUsers = users?.filter(u => u.status === 'suspended') || [];
+  const pendingUsers = filteredUsers?.filter(u => u.status === 'pending') || [];
+  const approvedUsers = filteredUsers?.filter(u => u.status === 'approved') || [];
+  const suspendedUsers = filteredUsers?.filter(u => u.status === 'suspended') || [];
 
   return (
-    <div className="min-h-screen bg-gradient-hero">
+    <div className="min-h-screen bg-[#F8FAFC]">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8">
-        <Card className="shadow-card">
-          <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-accent/5">
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-6 w-6 text-primary" />
-              Painel Administrativo
-            </CardTitle>
-            <CardDescription>
-              Gerencie usuários, aprovações e limitações da plataforma
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Tabs defaultValue="stats">
-              <TabsList className="grid w-full grid-cols-6 mb-6">
-                <TabsTrigger value="stats">
-                  <BarChart2 className="h-4 w-4 mr-2" />
-                  Estatísticas
-                </TabsTrigger>
-                <TabsTrigger value="pending">
-                  Pendentes ({pendingUsers.length})
-                </TabsTrigger>
-                <TabsTrigger value="approved">
-                  Aprovados ({approvedUsers.length})
-                </TabsTrigger>
-                <TabsTrigger value="suspended">
-                  Suspensos ({suspendedUsers.length})
-                </TabsTrigger>
-                <TabsTrigger value="sellers">
-                  <Store className="h-4 w-4 mr-2" />
-                  Vendedores
-                </TabsTrigger>
-                <TabsTrigger value="bots">
-                  <Bot className="h-4 w-4 mr-2" />
-                  Bots
-                </TabsTrigger>
-                <TabsTrigger value="proxy">
-                  <Terminal className="h-4 w-4 mr-2" />
-                  Vender APIs
-                </TabsTrigger>
-              </TabsList>
+      <main className="container mx-auto px-4 py-20 max-w-7xl relative">
+        <div className="absolute top-0 left-0 w-full h-full bg-grid-pattern opacity-[0.02] pointer-events-none" />
+        
+        <div className="flex flex-col md:flex-row items-center justify-between mb-16 gap-8 relative">
+          <div className="flex items-center gap-6">
+            <div className="h-20 w-20 rounded-[2.5rem] bg-blue-600 flex items-center justify-center shadow-xl shadow-blue-500/20">
+               <Shield className="h-10 w-10 text-white" />
+            </div>
+            <div>
+               <h1 className="text-5xl font-black tracking-tighter uppercase italic text-slate-900">Admin <span className="text-blue-600">Authority</span></h1>
+               <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em] mt-1">Gestão Central de Infraestrutura</p>
+            </div>
+          </div>
+          
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
+            <Input 
+              placeholder="Pesquisar usuários..." 
+              className="pl-14 h-16 bg-white border-slate-100 rounded-2xl shadow-sm focus:ring-blue-600 group text-slate-900 font-bold"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
 
-              <TabsContent value="stats">
-                <AdminStats />
-              </TabsContent>
+        <Tabs defaultValue="stats" className="space-y-12">
+          <TabsList className="bg-white/80 backdrop-blur-md p-2 rounded-[2.5rem] h-auto flex flex-wrap gap-2 w-fit border border-slate-200 shadow-xl mx-auto lg:mx-0">
+            {[
+              { value: 'stats', label: 'Dashboard', icon: LayoutDashboard },
+              { value: 'pending', label: `Pendentes (${pendingUsers.length})`, icon: UserCheck },
+              { value: 'approved', label: 'Usuários', icon: Users },
+              { value: 'databases', label: 'Bases de Dados', icon: Database },
+              { value: 'plans', label: 'Planos API', icon: Zap },
+              { value: 'bots', label: 'Configuração Bots', icon: Bot },
+              { value: 'proxy', label: 'Gestão APIs', icon: Terminal },
+            ].map(tab => (
+              <TabsTrigger 
+                key={tab.value}
+                value={tab.value} 
+                className="data-[state=active]:bg-blue-600 h-14 px-8 rounded-[2rem] text-slate-500 data-[state=active]:text-white font-black uppercase text-[10px] tracking-widest transition-all gap-3 flex items-center shadow-none active:scale-[0.97]"
+              >
+                <tab.icon className="h-4 w-4" />
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-              <TabsContent value="pending">
+          <TabsContent value="stats" className="animate-in fade-in zoom-in-95 duration-700">
+            <AdminStats />
+          </TabsContent>
+
+          <TabsContent value="pending" className="animate-in slide-in-from-bottom-8 duration-700">
+             <Card className="bg-white border-white shadow-card rounded-[3rem] overflow-hidden">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Código Vendedor</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow className="border-slate-100 hover:bg-transparent">
+                      <TableHead className="text-slate-400 font-black uppercase text-[10px] py-6 px-10">Identificação</TableHead>
+                      <TableHead className="text-slate-400 font-black uppercase text-[10px] py-6 px-10">Vendedor</TableHead>
+                      <TableHead className="text-right text-slate-400 font-black uppercase text-[10px] py-6 px-10">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.full_name || '-'}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          {user.seller_code ? (
-                            <span className="font-mono text-primary font-bold">{user.seller_code}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+                    {pendingUsers.map(user => (
+                      <TableRow key={user.id} className="border-slate-50 hover:bg-slate-50/50 transition-all">
+                        <TableCell className="py-6 px-10">
+                          <div className="font-black text-slate-900 uppercase italic tracking-tighter">{user.full_name || 'Usuário Sem Nome'}</div>
+                          <div className="text-xs font-bold text-slate-400">{user.email}</div>
                         </TableCell>
-                        <TableCell className="text-right space-x-2">
-                          <Button
-                            size="sm"
-                            className="bg-success hover:bg-success/90"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setApprovalDialogOpen(true);
-                            }}
-                          >
-                            <UserCheck className="h-4 w-4 mr-1" />
-                            Aprovar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleSuspendUser(user.id)}
-                          >
-                            <UserX className="h-4 w-4 mr-1" />
-                            Recusar
-                          </Button>
+                        <TableCell className="px-10">
+                          <Badge variant="outline" className="border-blue-100 text-blue-600 bg-blue-50 font-black uppercase px-3">{user.seller_code || 'DIRETO'}</Badge>
                         </TableCell>
-                      </TableRow>
-                    ))}
-                    {pendingUsers.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                          Nenhum usuário pendente
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-
-              <TabsContent value="approved">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Plano</TableHead>
-                      <TableHead>Expira em</TableHead>
-                      <TableHead>Limites</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {approvedUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.full_name || '-'}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{user.user_role}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {user.plan_type ? (
-                            <Badge>{user.plan_type}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {user.plan_expires_at ? (
-                            <span className="text-sm">
-                              {new Date(user.plan_expires_at).toLocaleDateString('pt-BR')}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {editingLimits === user.id ? (
-                            <div className="flex gap-2 items-center">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Diário</Label>
-                                <Input
-                                  type="number"
-                                  className="w-20 h-8"
-                                  value={dailyLimit}
-                                  onChange={(e) => setDailyLimit(parseInt(e.target.value))}
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Mensal</Label>
-                                <Input
-                                  type="number"
-                                  className="w-20 h-8"
-                                  value={monthlyLimit}
-                                  onChange={(e) => setMonthlyLimit(parseInt(e.target.value))}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <Badge variant="outline" className="font-mono">
-                              {user.limits?.daily_limit || 10}/{user.limits?.monthly_limit || 300}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right space-x-2">
-                          {editingLimits === user.id ? (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => handleUpdateLimits(user.id)}
-                              >
-                                Salvar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setEditingLimits(null)}
-                              >
-                                Cancelar
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditingLimits(user.id);
-                                  setDailyLimit(user.limits?.daily_limit || 10);
-                                  setMonthlyLimit(user.limits?.monthly_limit || 300);
-                                }}
-                              >
-                                <Settings className="h-4 w-4 mr-1" />
-                                Ajustar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleSuspendUser(user.id)}
-                              >
-                                Suspender
-                              </Button>
-                            </>
-                          )}
+                        <TableCell className="text-right px-10 space-x-3">
+                          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] tracking-widest rounded-xl px-6 h-10 shadow-lg shadow-blue-500/20" onClick={() => { setSelectedUser(user); setApprovalDialogOpen(true); }}>Aprovar</Button>
+                          <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50 font-black uppercase text-[10px] tracking-widest rounded-xl px-6 h-10" onClick={() => handleSuspendUser(user.id)}>Recusar</Button>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </TabsContent>
+             </Card>
+          </TabsContent>
 
-              <TabsContent value="suspended">
+          <TabsContent value="approved" className="animate-in slide-in-from-bottom-8 duration-700">
+             <Card className="bg-white border-white shadow-card rounded-[3rem] overflow-hidden">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow className="border-slate-100 hover:bg-transparent">
+                      <TableHead className="text-slate-400 font-black uppercase text-[10px] py-6 px-10">Usuário</TableHead>
+                      <TableHead className="text-slate-400 font-black uppercase text-[10px] py-6 px-10">Escopo / Validade</TableHead>
+                      <TableHead className="text-slate-400 font-black uppercase text-[10px] py-6 px-10">Carteira</TableHead>
+                      <TableHead className="text-right text-slate-400 font-black uppercase text-[10px] py-6 px-10">Gestão</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {suspendedUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.full_name || '-'}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{user.user_role}</Badge>
+                    {approvedUsers.map(user => (
+                      <TableRow key={user.id} className="border-slate-50 hover:bg-slate-50/50 transition-all">
+                        <TableCell className="py-6 px-10">
+                          <div className="font-black text-slate-900 uppercase italic tracking-tighter">{user.full_name || '-'}</div>
+                          <div className="text-xs font-bold text-slate-400">{user.email}</div>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            className="bg-success hover:bg-success/90"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setApprovalDialogOpen(true);
-                            }}
-                          >
-                            <UserCheck className="h-4 w-4 mr-1" />
-                            Reativar
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-
-              <TabsContent value="sellers">
-                <SellersTab />
-              </TabsContent>
-
-              <TabsContent value="proxy">
-                <ApiTokensTab />
-              </TabsContent>
-
-              <TabsContent value="bots">
-                <div className="space-y-8">
-                  {/* Header */}
-                  <div className="flex items-center gap-3 pb-4 border-b">
-                    <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg text-slate-900">Configuração dos Bots</h3>
-                      <p className="text-sm text-muted-foreground">Cole os tokens dos bots e registre os webhooks com um clique.</p>
-                    </div>
-                  </div>
-
-                  {/* Site URL */}
-                  <Card className="border-slate-200">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-slate-500" />
-                        URL do Site
-                      </CardTitle>
-                      <CardDescription>URL base usada para gerar links compartilháveis. Altere quando trocar o domínio.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Input
-                        value={botSettings.site_url}
-                        onChange={e => setBotSettings(p => ({ ...p, site_url: e.target.value }))}
-                        placeholder="https://infoseasy.netlify.app"
-                        className="font-mono text-sm"
-                      />
-                    </CardContent>
-                  </Card>
-
-                  {/* Telegram */}
-                  <Card className="border-blue-100 bg-blue-50/30">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Send className="h-4 w-4 text-blue-500" />
-                        Bot do Telegram
-                      </CardTitle>
-                      <CardDescription>Crie o bot no @BotFather e cole o token abaixo.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold uppercase tracking-wide text-slate-500">Token do Bot</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            type={showTokens['telegram_token'] ? 'text' : 'password'}
-                            value={botSettings.telegram_token}
-                            onChange={e => setBotSettings(p => ({ ...p, telegram_token: e.target.value }))}
-                            placeholder="1234567890:ABCDefghIJKlmNoPQRsTUVwxyZ"
-                            className="font-mono text-xs flex-1"
-                          />
-                          <Button variant="ghost" size="sm" className="px-2" onClick={() => toggleShowToken('telegram_token')}>
-                            {showTokens['telegram_token'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-                        </div>
-                      </div>
-                      <Button
-                        onClick={handleRegisterTelegram}
-                        disabled={registeringTg || !botSettings.telegram_token}
-                        className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-                        size="sm"
-                      >
-                        {registeringTg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Terminal className="h-3.5 w-3.5" />}
-                        Registrar Webhook Telegram
-                      </Button>
-                      {registerResult?.type === 'telegram' && (
-                        <div className={`text-xs font-mono p-3 rounded-xl border ${
-                          registerResult.success
-                            ? 'bg-green-50 border-green-200 text-green-800'
-                            : 'bg-red-50 border-red-200 text-red-800'
-                        }`}>
-                          {registerResult.message}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Discord */}
-                  <Card className="border-indigo-100 bg-indigo-50/30">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Bot className="h-4 w-4 text-indigo-500" />
-                        Bot do Discord
-                      </CardTitle>
-                      <CardDescription>Crie o app em discord.com/developers e preencha os dados abaixo.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {[
-                        { key: 'discord_token',      label: 'Bot Token',            placeholder: 'MTIzNDU2Nzg5...' },
-                        { key: 'discord_app_id',     label: 'Application ID',       placeholder: '1234567890123456789' },
-                        { key: 'discord_public_key', label: 'Public Key (Ed25519)',  placeholder: 'a1b2c3d4e5f6...' },
-                      ].map(({ key, label, placeholder }) => (
-                        <div key={key} className="space-y-1.5">
-                          <Label className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              type={showTokens[key] ? 'text' : 'password'}
-                              value={(botSettings as any)[key]}
-                              onChange={e => setBotSettings(p => ({ ...p, [key]: e.target.value }))}
-                              placeholder={placeholder}
-                              className="font-mono text-xs flex-1"
-                            />
-                            <Button variant="ghost" size="sm" className="px-2" onClick={() => toggleShowToken(key)}>
-                              {showTokens[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </Button>
+                        <TableCell className="px-10">
+                          <div className="flex gap-2 mb-1.5">
+                            <Badge className="bg-emerald-500 text-white font-black uppercase text-[9px] px-2">{user.plan_type || 'free'}</Badge>
+                            <Badge variant="outline" className="text-[9px] font-black uppercase">{user.role}</Badge>
                           </div>
-                        </div>
-                      ))}
-                      <Button
-                        onClick={handleRegisterDiscord}
-                        disabled={registeringDc || !botSettings.discord_token || !botSettings.discord_app_id}
-                        className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
-                        size="sm"
-                      >
-                        {registeringDc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Terminal className="h-3.5 w-3.5" />}
-                        Registrar Comandos Discord
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                             Expira: {user.plan_expires_at ? new Date(user.plan_expires_at).toLocaleDateString() : 'NUNCA'}
+                          </div>
+                        </TableCell>
+                        <TableCell className="px-10">
+                           <span className="font-black text-emerald-600 text-lg italic">R$ {(user.balance || 0).toFixed(2)}</span>
+                        </TableCell>
+                        <TableCell className="text-right px-10">
+                           <Button variant="ghost" size="sm" onClick={() => handleSuspendUser(user.id)} className="text-rose-500 hover:bg-rose-50 font-black uppercase text-[10px] tracking-widest rounded-xl px-6 h-10">Banir</Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+             </Card>
+          </TabsContent>
+
+          <TabsContent value="databases" className="animate-in slide-in-from-bottom-8 duration-700">
+             <DatabasesTab />
+          </TabsContent>
+
+          <TabsContent value="plans" className="animate-in slide-in-from-bottom-8 duration-700">
+             <ApiPlansTab />
+          </TabsContent>
+
+          <TabsContent value="bots" className="animate-in slide-in-from-bottom-8 duration-700">
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="bg-white border-white shadow-card rounded-[3rem] p-10 space-y-8">
+                   <div className="flex items-center gap-4">
+                      <div className="h-14 w-14 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100">
+                         <Send className="h-7 w-7 text-blue-600" />
+                      </div>
+                      <h3 className="text-2xl font-black uppercase italic tracking-tighter">Telegram Bot</h3>
+                   </div>
+                   <div className="space-y-6">
+                      <div className="space-y-3">
+                         <Label className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Master API Token</Label>
+                         <div className="relative">
+                            <Input 
+                              type={showTokens['tg'] ? 'text' : 'password'}
+                              value={botSettings.telegram_token}
+                              onChange={e => setBotSettings(p => ({ ...p, telegram_token: e.target.value }))}
+                              className="h-14 bg-slate-50 border-slate-100 rounded-2xl pr-14 font-mono font-bold text-slate-900"
+                            />
+                            <Button variant="ghost" size="sm" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" onClick={() => toggleShowToken('tg')}>
+                               {showTokens['tg'] ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </Button>
+                         </div>
+                      </div>
+                      <Button onClick={handleRegisterTelegram} className="w-full h-14 bg-blue-600 hover:bg-blue-700 rounded-2xl font-black uppercase tracking-widest italic" disabled={registeringTg}>
+                         {registeringTg ? <Loader2 className="animate-spin h-6 w-6" /> : 'Sincronizar Webhook'}
                       </Button>
-                      {registerResult?.type === 'discord' && (
-                        <div className={`text-xs font-mono p-3 rounded-xl border whitespace-pre-wrap break-all ${
-                          registerResult.success
-                            ? 'bg-green-50 border-green-200 text-green-800'
-                            : 'bg-red-50 border-red-200 text-red-800'
-                        }`}>
-                          {registerResult.message}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                   </div>
+                </Card>
 
-                  {/* External API Proxy */}
-                  <Card className="border-amber-100 bg-amber-50/30">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Terminal className="h-4 w-4 text-amber-600" />
-                        Provedor de APIs Externas (Painel)
-                      </CardTitle>
-                      <CardDescription>Configure o Token e a URL do servidor de APIs principal (45.190.208.48).</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold uppercase tracking-wide text-slate-500">API Token (Panel)</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            type={showTokens['external_api_token'] ? 'text' : 'password'}
-                            value={botSettings.external_api_token}
-                            onChange={e => setBotSettings(p => ({ ...p, external_api_token: e.target.value }))}
-                            placeholder="PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk"
-                            className="font-mono text-xs flex-1"
-                          />
-                          <Button variant="ghost" size="sm" className="px-2" onClick={() => toggleShowToken('external_api_token')}>
-                            {showTokens['external_api_token'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-                        </div>
+                <Card className="bg-white border-white shadow-card rounded-[3rem] p-10 space-y-8">
+                   <div className="flex items-center gap-4">
+                      <div className="h-14 w-14 rounded-2xl bg-indigo-50 flex items-center justify-center border border-indigo-100">
+                         <Bot className="h-7 w-7 text-indigo-600" />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold uppercase tracking-wide text-slate-500">URL de Consulta</Label>
-                        <Input
-                          value={botSettings.external_api_url}
-                          onChange={e => setBotSettings(p => ({ ...p, external_api_url: e.target.value }))}
-                          placeholder="http://45.190.208.48:7070/consulta"
-                          className="font-mono text-xs"
-                        />
+                      <h3 className="text-2xl font-black uppercase italic tracking-tighter">Discord Bot</h3>
+                   </div>
+                   <div className="space-y-6">
+                      <div className="grid grid-cols-1 gap-6">
+                         <div className="space-y-3">
+                            <Label className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Application ID</Label>
+                            <Input value={botSettings.discord_app_id} onChange={e => setBotSettings(p => ({ ...p, discord_app_id: e.target.value }))} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold text-slate-900" />
+                         </div>
+                         <div className="space-y-3">
+                            <Label className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Secret Token</Label>
+                            <Input type="password" value={botSettings.discord_token} onChange={e => setBotSettings(p => ({ ...p, discord_token: e.target.value }))} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold text-slate-900" />
+                         </div>
                       </div>
-                      <div className="p-3 bg-white/50 border border-amber-200 rounded-xl text-[11px] text-amber-800 leading-relaxed italic">
-                        ⚠️ <b>Atenção:</b> Estes dados são usados mundialmente pelo bot e pelo site para as APIs do tipo "panel:". Mantenha o token sempre atualizado para evitar erros 500.
-                      </div>
-                    </CardContent>
-                  </Card>
+                      <Button onClick={handleRegisterDiscord} className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black uppercase tracking-widest italic" disabled={registeringDc}>
+                         {registeringDc ? <Loader2 className="animate-spin h-6 w-6" /> : 'Configurar Slash Commands'}
+                      </Button>
+                   </div>
+                </Card>
 
-                  {/* Botão Salvar global */}
-
-                  <div className="flex justify-end pt-2 border-t">
-                    <Button
-                      onClick={handleSaveBotSettings}
-                      disabled={savingBots}
-                      className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold px-8"
-                    >
-                      {savingBots ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Salvar todas as configurações
-                    </Button>
-                  </div>
+                <div className="lg:col-span-2 flex justify-end pt-10 border-t border-slate-100">
+                   <Button onClick={handleSaveBotSettings} className="h-16 px-16 bg-blue-600 hover:bg-blue-700 rounded-[2rem] font-black uppercase tracking-[0.2em] italic shadow-2xl shadow-blue-500/30" disabled={savingBots}>
+                      {savingBots ? <Loader2 className="animate-spin h-6 w-6 mr-4" /> : <Save className="h-6 w-6 mr-4" />}
+                      Salvar Todas as Definições
+                   </Button>
                 </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+             </div>
+          </TabsContent>
+
+          <TabsContent value="proxy" className="animate-in slide-in-from-bottom-8 duration-700">
+             <ApiTokensTab />
+          </TabsContent>
+        </Tabs>
       </main>
 
       <ApprovalDialog
         isOpen={approvalDialogOpen}
-        onClose={() => {
-          setApprovalDialogOpen(false);
-          setSelectedUser(null);
-        }}
-        onApprove={(planType, role, expiresAt) => {
-          if (selectedUser) {
-            handleApproveUser(selectedUser.id, planType, role, expiresAt);
-          }
-        }}
+        onClose={() => { setApprovalDialogOpen(false); setSelectedUser(null); }}
+        onApprove={(planType, role, expiresAt) => { if (selectedUser) handleApproveUser(selectedUser.id, planType, role, expiresAt); }}
         userName={selectedUser?.full_name || selectedUser?.email || ''}
       />
     </div>

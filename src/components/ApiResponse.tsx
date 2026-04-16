@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Check, Download, ChevronDown, ChevronUp, Image as ImageIcon, User, MapPin, Phone, CreditCard, FileText, Briefcase, Heart, Info, Users, Activity, ShieldCheck, Printer, Syringe, Landmark, Stethoscope, Scale, Globe, GraduationCap, Car, ShoppingCart, Zap, FileSearch, History, UserCheck, AlertTriangle, Fingerprint, FileBadge } from 'lucide-react';
+import { Copy, Check, Download, ChevronDown, ChevronUp, Image as ImageIcon, User, MapPin, Phone, CreditCard, FileText, Briefcase, Heart, Info, Users, Activity, ShieldCheck, Printer, Syringe, Landmark, Stethoscope, Scale, Globe, GraduationCap, Car, ShoppingCart, Zap, FileSearch, History, UserCheck, AlertTriangle, Fingerprint, FileBadge, Cpu, Scan, LayoutGrid, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ImageDisplay } from '@/components/ImageDisplay';
 import { useState, useMemo } from 'react';
@@ -16,19 +16,19 @@ interface ApiResponseProps {
 export function ApiResponse({ data, apiName }: ApiResponseProps) {
   const { toast } = useToast();
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['IDENTIFICAÇÃO PRINCIPAL', 'GALERIA DE FOTOS', 'DOCUMENTAÇÃO OFICIAL', 'LOCALIZAÇÃO / ENDEREÇOS']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['IDENTIFICAÇÃO PRINCIPAL', 'GALERIA DE FOTOS', 'DOCUMENTAÇÃO OFICIAL', 'LOCALIZAÇÃO / ENDEREÇOS', 'DIVERSOS / CONSULTA']));
 
   const copyToClipboard = (text: string, field: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(field);
+    toast({ title: 'Copiado!', description: `${field} copiado com sucesso.`, duration: 2000 });
     setTimeout(() => setCopiedField(null), 2000);
   };
 
   const isBase64Image = (value: any) => {
     if (typeof value !== 'string') return false;
-    return value.startsWith('data:image') ||
-      (value.length > 200 && /^[A-Za-z0-9+/=]+$/.test(value.substring(0, 100)));
+    return value.startsWith('data:image') || (value.length > 200 && /^[A-Za-z0-9+/=]+$/.test(value.substring(0, 100)));
   };
 
   const findImagesWithContext = (obj: any, context: any = {}): { key: string; value: string; label: string }[] => {
@@ -66,9 +66,6 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     const unwrap = (obj: any): any => {
       if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
       if (obj.cached_at) metadata.cached_at = obj.cached_at;
-      if (obj.cache !== undefined) metadata.cache = obj.cache;
-      if (obj.conta) metadata.conta = obj.conta;
-
       const entries = Object.entries(obj);
       const containerEntry = entries.find(([k]) => ['data', 'dados', 'content', 'resultado', 'payload'].includes(k.toLowerCase()));
       if (entries.length <= 8 && containerEntry) return unwrap(containerEntry[1]);
@@ -83,9 +80,8 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (v === null || v === undefined) return false;
     if (typeof v === 'string') {
       const low = v.toLowerCase().trim();
-      return !(low === '' || low === 'undefined');
+      return !(low === '' || low === 'undefined' || low === 'null');
     }
-    if (Array.isArray(v)) return true;
     return true;
   };
 
@@ -93,7 +89,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     const specials: Record<string, string> = {
       'cns': 'CNS', 'cpf': 'CPF', 'cnpj': 'CNPJ', 'rg': 'RG', 'uf': 'UF', 'pis': 'PIS', 'cep': 'CEP',
       'mae': 'Mãe', 'pai': 'Pai', 'nasc': 'Nascimento', 'social': 'Nome Social', 'ddd': 'DDD', 'vinculo': 'Vínculo',
-      'sexo': 'Sexo', 'logradouro': 'Endereço', 'obito': 'Óbito', 'situacao': 'Situação', 'restricao': 'Restrição Judicial',
+      'sexo': 'Sexo', 'logradouro': 'Endereço', 'obito': 'Óbito', 'situacao': 'Situação', 'restricao': 'Restrição',
       'nacionalidade': 'Nacionalidade', 'naturalidade': 'Naturalidade', 'idade': 'Idade', 'profissao': 'Profissão'
     };
     const cleanKey = key.split(' > ').pop() || key;
@@ -105,11 +101,11 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
   };
 
   const renderValue = (v: any): string => {
-    if (typeof v === 'boolean') return v ? 'Sim' : 'Não';
-    if (v === 'F' || v === 'f') return 'Feminino';
-    if (v === 'M' || v === 'm') return 'Masculino';
-    if (!v || String(v).toLowerCase().trim() === 'nan' || String(v).toLowerCase().trim() === 'null' || String(v).toLowerCase().trim() === 'não informado') return 'Sem / Não Encontrado';
-    return String(v);
+    if (typeof v === 'boolean') return v ? 'SIM' : 'NÃO';
+    if (v === 'F' || v === 'f') return 'FEMININO';
+    if (v === 'M' || v === 'm') return 'MASCULINO';
+    if (!isValidValue(v) || String(v).toLowerCase().trim() === 'nan') return 'NÃO CONSTA / SEM REGISTRO';
+    return String(v).toUpperCase();
   };
 
   const toggleSection = (sectionLabel: string) => {
@@ -121,143 +117,40 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
 
   const getCategoryTheme = (key: string) => {
     const k = key.toLowerCase();
-    const themes: Record<string, { label: string; icon: any }> = {
-      'images': { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="text-purple-600" /> },
-      'personal': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
-      'identificacao': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
-      'basicos': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="text-blue-700" /> },
-      'vacina': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="text-rose-600" /> },
-      'saude': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
-      'doenca': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
-      'deficiencia': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
-      'prontuario': { label: 'SAÚDE E ASSISTÊNCIA', icon: <Heart className="text-red-500" /> },
-      'benefic': { label: 'BENEFÍCIOS SOCIAIS', icon: <Landmark className="text-amber-600" /> },
-      'financeir': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'banco': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'cartao': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'pix': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'cheque': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'conta': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'divida': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'bacen': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'emprestim': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'fgts': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'previdenc': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="text-emerald-700" /> },
-      'renda': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
-      'salario': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
-      'aquisicao': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
-      'irpf': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
-      'poder_aquisitivo': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
-      'imoveis': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="text-slate-700" /> },
-      'receita': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="text-indigo-600" /> },
-      'ender': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
-      'localizac': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
-      'residente': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="text-red-600" /> },
-      'parent': { label: 'VÍNCULOS FAMILIARES', icon: <Users className="text-pink-600" /> },
-      'filiacao': { label: 'VÍNCULOS FAMILIARES', icon: <Users className="text-pink-600" /> },
-      'certida': { label: 'CARTÓRIO E REGISTRO CIVIL', icon: <FileText className="text-slate-600" /> },
-      'cartorio': { label: 'CARTÓRIO E REGISTRO CIVIL', icon: <FileText className="text-slate-600" /> },
-      'document': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
-      'cnh': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
-      'habilitacao': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
-      'ctps': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
-      'titulo': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
-      'alistamento': { label: 'DOCUMENTAÇÃO OFICIAL', icon: <ShieldCheck className="text-blue-600" /> },
-      'cedula': { label: 'HISTÓRICO DE CÉDULAS (RG)', icon: <FileBadge className="text-cyan-600" /> },
-      'rfb': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="text-indigo-600" /> },
-      'contat': { label: 'CANAIS DE CONTATO', icon: <Phone className="text-emerald-600" /> },
-      'email': { label: 'CANAIS DE CONTATO', icon: <Phone className="text-emerald-600" /> },
-      'telefone': { label: 'CANAIS DE CONTATO', icon: <Phone className="text-emerald-600" /> },
-      'trabalh': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
-      'empreg': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
-      'colegas': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
-      'curriculo': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
-      'conselho': { label: 'HISTÓRICO PROFISSIONAL', icon: <Briefcase className="text-slate-800" /> },
-      'empresa': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="text-blue-900" /> },
-      'socio': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="text-blue-900" /> },
-      'processo': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
-      'judicial': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
-      'restricao': { label: 'DIREITO E PROCESSOS', icon: <Scale className="text-slate-950" /> },
-      'veicul': { label: 'VEÍCULOS E TRÂNSITO', icon: <Car className="text-slate-700" /> },
-      'detran': { label: 'VEÍCULOS E TRÂNSITO', icon: <Car className="text-slate-700" /> },
-      'internet': { label: 'PRESENÇA DIGITAL', icon: <Globe className="text-sky-600" /> },
-      'digital': { label: 'PRESENÇA DIGITAL', icon: <Globe className="text-sky-600" /> },
-      'site': { label: 'PRESENÇA DIGITAL', icon: <Globe className="text-sky-600" /> },
-      'consumo': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
-      'interess': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
-      'compras': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
-      'mosaic': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
-      'opiniao': { label: 'PERFIL DE CONSUMO', icon: <ShoppingCart className="text-orange-500" /> },
-      'energia': { label: 'CONTAS DE ENERGIA', icon: <Zap className="text-yellow-600" /> },
-      'antecedente': { label: 'ANTECEDENTES E REGISTROS', icon: <FileSearch className="text-red-800" /> },
-      'crimina': { label: 'ANTECEDENTES E REGISTROS', icon: <FileSearch className="text-red-800" /> },
-      'mandado': { label: 'ANTECEDENTES E REGISTROS', icon: <AlertTriangle className="text-red-950" /> },
-      'histori': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
-      'moviment': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
-      'ficha': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
-      'protocolo': { label: 'HISTÓRICO REGISTRADO', icon: <History className="text-slate-500" /> },
-      'biometria': { label: 'DADOS BIOMÉTRICOS', icon: <Fingerprint className="text-blue-500" /> },
-      'digitais': { label: 'DADOS BIOMÉTRICOS', icon: <Fingerprint className="text-blue-500" /> },
-      'escolar': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> },
-      'faculdade': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> },
-      'universit': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> },
-      'matricula': { label: 'EDUCAÇÃO E FORMAÇÃO', icon: <GraduationCap className="text-blue-600" /> }
+    const themes: Record<string, { label: string; icon: any; color: string }> = {
+      'images': { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5" />, color: 'text-blue-600' },
+      'personal': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
+      'vacina': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="h-5 w-5" />, color: 'text-rose-600' },
+      'financeir': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="h-5 w-5" />, color: 'text-emerald-600' },
+      'renda': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="h-5 w-5" />, color: 'text-blue-600' },
+      'rfb': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="h-5 w-5" />, color: 'text-indigo-600' },
+      'ender': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="h-5 w-5" />, color: 'text-rose-600' },
+      'contat': { label: 'CANAIS DE CONTATO', icon: <Phone className="h-5 w-5" />, color: 'text-emerald-600' },
+      'empresa': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="h-5 w-5" />, color: 'text-blue-600' },
+      'processo': { label: 'DIREITO E PROCESSOS', icon: <Scale className="h-5 w-5" />, color: 'text-slate-600' },
+      'veicul': { label: 'VEÍCULOS E TRÂNSITO', icon: <Car className="h-5 w-5" />, color: 'text-amber-600' }
     };
-
     for (const [keyWord, theme] of Object.entries(themes)) {
       if (k.includes(keyWord)) return theme;
     }
-    return { label: 'OUTROS REGISTROS ENCONTRADOS', icon: <Info className="text-slate-400" /> };
+    return { label: 'DIVERSOS / CONSULTA', icon: <Activity className="h-5 w-5" />, color: 'text-blue-600' };
   };
 
   const catData = useMemo(() => {
     if (!displayData) return [];
-
-    const categories: Record<string, { label: string; icon: any; data: any }> = {};
-
+    const categories: Record<string, { label: string; icon: any; color: string; data: any }> = {};
     const images = findImagesWithContext(displayData);
     if (images.length > 0) {
-      categories['GALERIA DE FOTOS'] = { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5 text-purple-600" />, data: { _images: images } };
+      categories['GALERIA DE FOTOS'] = { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5" />, color: 'text-blue-600', data: { _images: images } };
     }
-
-    const process = (obj: any) => {
-      Object.entries(obj).forEach(([key, value]) => {
-        if (key === '_metadata' || key === 'raw' || isBase64Image(value) || !isValidValue(value)) return;
-
-        const theme = getCategoryTheme(key);
-        const label = theme.label;
-
-        if (!categories[label]) {
-          categories[label] = { label, icon: theme.icon, data: {} };
-        }
-        categories[label].data[key] = value;
-      });
-    };
-
-    process(displayData);
-
-    const order = [
-      'GALERIA DE FOTOS', 'IDENTIFICAÇÃO PRINCIPAL', 'HISTÓRICO REGISTRADO', 'DADOS BIOMÉTRICOS',
-      'SITUAÇÃO NA RECEITA FEDERAL', 'VÍNCULOS FAMILIARES', 'LOCALIZAÇÃO / ENDEREÇOS',
-      'CANAIS DE CONTATO', 'DOCUMENTAÇÃO OFICIAL', 'HISTÓRICO DE CÉDULAS (RG)',
-      'CARTÓRIO E REGISTRO CIVIL', 'DIREITO E PROCESSOS', 'ANTECEDENTES E REGISTROS',
-      'SAÚDE E VACINAÇÃO', 'SAÚDE E ASSISTÊNCIA', 'FINANÇAS E BANCÁRIO',
-      'RENDA E PATRIMÔNIO', 'BENEFÍCIOS SOCIAIS', 'HISTÓRICO PROFISSIONAL',
-      'PARTICIPAÇÕES SOCIETÁRIAS', 'EDUCAÇÃO E FORMAÇÃO', 'PERFIL DE CONSUMO', 'VEÍCULOS E TRÂNSITO'
-    ];
-
-    const categoriesWithData = Object.entries(categories).filter(([_, cat]) => {
-      if (cat.data._images && cat.data._images.length > 0) return true;
-      const dataKeys = Object.keys(cat.data).filter(k => k !== '_images');
-      return dataKeys.length > 0;
+    Object.entries(displayData).forEach(([key, value]) => {
+      if (key === '_metadata' || key === 'raw' || isBase64Image(value)) return;
+      const theme = getCategoryTheme(key);
+      const label = theme.label;
+      if (!categories[label]) categories[label] = { label, icon: theme.icon, color: theme.color, data: {} };
+      categories[label].data[key] = value;
     });
-
-    return categoriesWithData
-      .sort((a, b) => {
-        const ax = order.indexOf(a[0]);
-        const bx = order.indexOf(b[0]);
-        return (ax === -1 ? 99 : ax) - (bx === -1 ? 99 : bx);
-      });
+    return Object.entries(categories).sort((a,b) => a[0].localeCompare(b[0]));
   }, [displayData]);
 
   const renderRecursive = (obj: any, depth = 0): JSX.Element | null => {
@@ -266,30 +159,30 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (entries.length === 0) return null;
 
     return (
-      <div className={cn("grid gap-y-1 gap-x-4", depth === 0 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1 border-l border-slate-100 ml-2 pl-4 py-1")}>
+      <div className={cn("grid gap-4 w-full", depth === 0 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 border-l-2 border-slate-100 ml-2 pl-4 mt-4")}>
         {entries.map(([key, value]) => {
           const isObj = typeof value === 'object' && value !== null;
           const isArr = Array.isArray(value);
 
           return (
-            <div key={key} className={cn("flex flex-col sm:flex-row items-start sm:items-baseline py-2 sm:py-1.5 border-b border-slate-50 last:border-0", (isObj || isArr || String(value).length > 40) && "md:col-span-2 lg:col-span-2")}>
-              <div className="min-w-[120px] text-[10px] sm:text-[11px] font-bold text-slate-400 sm:text-slate-500 uppercase tracking-tight sm:tracking-tighter mb-1 sm:mb-0 mr-3">
-                {formatFieldName(key)}
+            <div key={key} className={cn("group/field flex flex-col p-5 rounded-2xl bg-slate-50 border border-slate-100/50 hover:bg-white hover:border-blue-200 transition-all shadow-sm", (isObj || isArr || String(value).length > 25) && "sm:col-span-2")}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatFieldName(key)}</span>
+                {!isObj && !isArr && (
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover/field:opacity-100 hover:bg-blue-50 transition-all" onClick={() => copyToClipboard(String(value), key)}>
+                    <Copy className="h-3 w-3 text-blue-600" />
+                  </Button>
+                )}
               </div>
               <div className="flex-1 w-full">
                 {!isObj && !isArr ? (
-                  <div className="flex items-center justify-between group/field">
-                    <span className="text-[13px] sm:text-[14px] font-bold sm:font-black text-slate-900 break-words leading-tight">{renderValue(value)}</span>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-100 sm:opacity-0 group-hover/field:opacity-100" onClick={() => copyToClipboard(String(value), key)}>
-                      <Copy className="h-3 w-3 text-slate-400" />
-                    </Button>
-                  </div>
+                  <span className="text-[13px] font-black text-slate-900 break-words leading-tight">{renderValue(value)}</span>
                 ) : isArr ? (
                   <div className="space-y-4 mt-2">
                     {value.map((item: any, i: number) => (
-                      <div key={i} className="bg-slate-50 p-4 rounded-xl border border-slate-100 relative mb-4">
-                        <div className="absolute -top-2 left-2 px-2 py-0.5 bg-slate-200 text-[8px] font-black text-slate-600 rounded uppercase">Item #{i + 1}</div>
-                        {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-xs font-bold text-slate-800">{renderValue(item)}</span>}
+                      <div key={i} className="p-4 rounded-xl bg-white border border-slate-100 relative">
+                        <Badge variant="outline" className="text-[9px] mb-3 border-slate-200 text-slate-400 font-black uppercase">Item #{i + 1}</Badge>
+                        {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-[13px] font-black text-blue-600">{renderValue(item)}</span>}
                       </div>
                     ))}
                   </div>
@@ -307,12 +200,12 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
   const downloadAsTxt = () => {
     const build = (obj: any, indent = ''): string => {
       let str = '';
-      if (!obj || typeof obj !== 'object') return isValidValue(obj) ? String(obj) : '';
+      if (!obj || typeof obj !== 'object') return isValidValue(obj) ? String(obj) : 'SEM REGISTRO';
       for (const [key, value] of Object.entries(obj)) {
         if (key === '_metadata' || isBase64Image(value)) continue;
         if (Array.isArray(value)) {
           str += `${indent}${formatFieldName(key).toUpperCase()}:\n`;
-          value.forEach((v, i) => { str += `${indent}  #${i + 1}:\n${build(v, indent + '    ')}\n`; });
+          value.forEach((v, i) => { str += `${indent}  [#${i + 1}]:\n${build(v, indent + '    ')}\n`; });
         } else if (typeof value === 'object' && value !== null) {
           str += `${indent}${formatFieldName(key).toUpperCase()}:\n${build(value, indent + '  ')}\n`;
         } else {
@@ -321,81 +214,91 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       }
       return str;
     };
-    const report = `=== RELATÓRIO OFICIAL INFOEASY 2.0 ===\nAPI: ${apiName.toUpperCase()}\nDATA: ${new Date().toLocaleString()}\n====================================\n\n${build(displayData)}`;
+    const report = `INFOEASY 2.0 - DOSSIE DE INTELIGENCIA\nIDENTIFICADOR: ${apiName.toUpperCase()}\nDATA EMISSAO: ${new Date().toLocaleString()}\n============================================\n\n${build(displayData)}`;
     const blob = new Blob([report], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `Laudo_${apiName}_${Date.now()}.txt`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `InfoEasy_Relatorio_${Date.now()}.txt`; a.click();
   };
 
   if (!displayData) return null;
 
   return (
-    <Card id="relatorio-master" className="mt-4 md:mt-8 border border-slate-200 bg-white shadow-xl rounded-2xl md:rounded-[2.5rem] overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-700">
-      <CardHeader className="p-4 md:p-12 bg-slate-50 border-b border-slate-200">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8">
-          <div className="flex items-center gap-3 md:gap-6">
-            <div className="h-12 w-12 md:h-20 md:w-20 rounded-xl md:rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-6 w-6 md:h-10 md:w-10 text-blue-800" />
+    <Card id="relatorio-master" className="mt-8 bg-white border-white shadow-[0_30px_60px_-15px_rgba(0,0,0,0.05)] rounded-[3rem] overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-1000">
+      <CardHeader className="p-10 md:p-14 border-b border-slate-100 bg-slate-50/30">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-10">
+          <div className="flex items-center gap-8">
+            <div className="h-20 w-20 rounded-[2rem] bg-blue-600 flex items-center justify-center shadow-xl shadow-blue-500/20 relative group">
+               <Scan className="h-10 w-10 text-white" />
             </div>
-            <div>
-              <h2 className="text-xl md:text-3xl font-black text-slate-950 tracking-tighter uppercase mb-0.5 md:mb-1">Dossiê de Inteligência</h2>
-              <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-                <Badge className="bg-slate-900 text-white border-none py-0.5 px-2 md:py-1 md:px-3 text-[9px] md:text-[10px] font-black">{apiName}</Badge>
-                {displayData._metadata?.cached_at && <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">{displayData._metadata.cached_at}</span>}
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <Badge className="bg-blue-50 text-blue-600 border-blue-100 py-0.5 px-3 text-[10px] font-black uppercase tracking-widest">{apiName}</Badge>
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse-soft" />
+              </div>
+              <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic">Dossiê de <span className="text-blue-600">Busca</span></h2>
+              <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <span>Ref: #{Math.random().toString(36).substring(7).toUpperCase()}</span>
+                <span>•</span>
+                <span>Data: {new Date().toLocaleDateString()}</span>
               </div>
             </div>
           </div>
-          <div className="flex gap-2 w-full md:w-auto">
-            <Button onClick={downloadAsTxt} className="h-10 md:h-12 flex-1 md:flex-none px-4 md:px-6 rounded-xl md:rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] md:text-[11px] uppercase tracking-wider md:tracking-widest gap-2 transition-transform active:scale-95 shadow-md">
-              <Download className="h-3.5 w-3.5 md:h-4 md:w-4" /> <span className="md:inline">Baixar (TXT)</span>
+          <div className="flex gap-4 w-full md:w-auto">
+            <Button onClick={downloadAsTxt} className="h-14 flex-1 md:flex-none px-8 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-black text-xs uppercase tracking-widest gap-3 transition-all border border-slate-200">
+              <FileDown className="h-5 w-5 text-blue-600" /> DOWNLOAD TXT
             </Button>
-            <Button variant="outline" onClick={() => window.print()} className="h-10 w-10 md:h-12 md:w-auto md:px-6 rounded-xl md:rounded-2xl border-slate-200 hover:bg-slate-100 font-black text-[10px] md:text-[11px] uppercase tracking-widest gap-2">
-              <Printer className="h-3.5 w-3.5 md:h-4 md:w-4" /> <span className="hidden md:inline">Imprimir</span>
+            <Button variant="ghost" onClick={() => window.print()} className="h-14 w-14 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200">
+              <Printer className="h-5 w-5" />
             </Button>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="p-4 md:p-12 space-y-6 md:space-y-12">
+      <CardContent className="p-10 md:p-14 space-y-12">
         {catData.map(([label, cat]) => (
-          <Collapsible key={label} open={expandedSections.has(label)} onOpenChange={() => toggleSection(label)} className="group space-y-4">
+          <Collapsible key={label} open={expandedSections.has(label)} onOpenChange={() => toggleSection(label)} className="group">
             <CollapsibleTrigger asChild>
-              <div className="flex items-center justify-between cursor-pointer border-b border-slate-200 pb-4 group-hover:border-blue-300 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 group-hover:bg-blue-50 group-hover:border-blue-200 transition-all">
+              <div className="flex items-center justify-between cursor-pointer border-b border-slate-100 pb-8 hover:border-blue-300 transition-all">
+                <div className="flex items-center gap-6">
+                  <div className={cn("p-4 rounded-[1.5rem] bg-slate-50 border border-slate-100 group-hover:bg-blue-50 transition-all", cat.color)}>
                     {cat.icon}
                   </div>
-                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">{cat.label}</h3>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-1.5">{cat.label}</h3>
+                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{Object.keys(cat.data).length} REGISTROS DISPONÍVEIS</span>
+                  </div>
                 </div>
-                <div className={cn("h-10 w-10 rounded-full flex items-center justify-center bg-slate-50 border border-slate-200 transition-all", expandedSections.has(label) && "bg-blue-100 border-blue-200")}>
-                  {expandedSections.has(label) ? <ChevronUp className="h-5 w-5 text-blue-700" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
+                <div className={cn("h-12 w-12 rounded-full flex items-center justify-center bg-slate-50 border border-slate-100 transition-all", expandedSections.has(label) && "bg-blue-600 border-blue-600")}>
+                  {expandedSections.has(label) ? <ChevronUp className="h-6 w-6 text-white" /> : <ChevronDown className="h-6 w-6 text-slate-400" />}
                 </div>
               </div>
             </CollapsibleTrigger>
 
-            <CollapsibleContent>
-              <div className="px-2 pt-2">
-                {label === 'GALERIA DE FOTOS' ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                    {cat.data._images.map((img: any, i: number) => (
-                      <div key={i} className="group/img space-y-3">
-                        <div className="aspect-[3/4] relative rounded-[1.5rem] overflow-hidden border border-slate-200 bg-slate-100 shadow-sm transition-all duration-700 group-hover/img:scale-105 group-hover/img:ring-4 ring-blue-50 group-hover/img:shadow-xl">
-                          <ImageDisplay imageData={img.value} name={img.label} />
-                        </div>
-                        <div className="text-[10px] text-center font-black text-slate-500 uppercase leading-tight px-1">
-                          {img.label}
-                        </div>
+            <CollapsibleContent className="pt-10 animate-in slide-in-from-top-4 duration-500">
+              {label === 'GALERIA DE FOTOS' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8">
+                  {cat.data._images.map((img: any, i: number) => (
+                    <div key={i} className="group/img space-y-4">
+                      <div className="aspect-[3/4] relative rounded-[2rem] overflow-hidden border-4 border-white shadow-xl bg-slate-100 transition-all duration-700 group-hover/img:scale-105 group-hover/img:ring-4 ring-blue-100">
+                        <ImageDisplay imageData={img.value} name={img.label} />
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  renderRecursive(cat.data)
-                )}
-              </div>
+                      <div className="text-[10px] text-center font-black text-slate-400 uppercase leading-tight px-1 group-hover/img:text-blue-600 transition-colors">
+                        {img.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                renderRecursive(cat.data)
+              )}
             </CollapsibleContent>
           </Collapsible>
         ))}
       </CardContent>
+      
+      <div className="p-10 bg-slate-50 text-center border-t border-slate-100">
+         <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.6em]">System generated dars &bull; infoeasy intelligence</p>
+      </div>
     </Card>
   );
 }
