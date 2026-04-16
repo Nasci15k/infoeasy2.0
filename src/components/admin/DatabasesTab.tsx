@@ -19,7 +19,7 @@ export function DatabasesTab() {
     name: '',
     description: '',
     price: 0,
-    image_url: '',
+    photo_url: '',
     database_url: ''
   });
 
@@ -65,7 +65,7 @@ export function DatabasesTab() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', price: 0, image_url: '', database_url: '' });
+    setFormData({ name: '', description: '', price: 0, photo_url: '', database_url: '' });
     setEditingId(null);
   };
 
@@ -74,7 +74,7 @@ export function DatabasesTab() {
       name: db.name,
       description: db.description,
       price: db.price,
-      image_url: db.image_url,
+      photo_url: db.photo_url,
       database_url: db.database_url
     });
     setEditingId(db.id);
@@ -134,8 +134,8 @@ export function DatabasesTab() {
                 <div className="space-y-2">
                   <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">URL da Imagem</Label>
                   <Input 
-                    value={formData.image_url} 
-                    onChange={e => setFormData({...formData, image_url: e.target.value})} 
+                    value={formData.photo_url} 
+                    onChange={e => setFormData({...formData, photo_url: e.target.value})} 
                     className="bg-white/5 border-white/10 rounded-xl"
                     placeholder="https://..."
                   />
@@ -176,8 +176,8 @@ export function DatabasesTab() {
             {databases?.map((db) => (
               <TableRow key={db.id} className="border-white/5 hover:bg-white/[0.01] transition-colors">
                 <TableCell>
-                  {db.image_url ? (
-                    <img src={db.image_url} alt={db.name} className="h-10 w-10 rounded-lg object-cover border border-white/10 shadow-lg" />
+                  {db.photo_url ? (
+                    <img src={db.photo_url} alt={db.name} className="h-10 w-10 rounded-lg object-cover border border-white/10 shadow-lg" />
                   ) : (
                     <div className="h-10 w-10 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center">
                       <ImageIcon className="h-5 w-5 text-slate-600" />

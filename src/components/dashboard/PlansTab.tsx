@@ -16,7 +16,7 @@ export function PlansTab() {
   const { data: plans, isLoading } = useQuery({
     queryKey: ['available-plans'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('api_plans').select('*').eq('is_active', true).order('price', { ascending: true });
+      const { data, error } = await supabase.from('api_plans').select('*').eq('is_active', true).order('price_monthly', { ascending: true });
       if (error) throw error;
       return data;
     }
@@ -120,13 +120,27 @@ export function PlansTab() {
             </div>
 
             <div className="p-10 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-4">
-               <Button 
-                  onClick={() => handlePurchase(plan.id, 'monthly')}
-                  disabled={!!loading}
-                  className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest italic shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all"
-               >
-                  {loading === `${plan.id}-monthly` ? <Loader2 className="animate-spin h-6 w-6" /> : 'Ativar Acesso'}
-               </Button>
+               <div className="flex flex-col gap-3">
+                  {plan.price_weekly > 0 && (
+                     <Button 
+                        onClick={() => handlePurchase(plan.id, 'weekly')}
+                        disabled={!!loading}
+                        className="h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase tracking-widest italic shadow-xl shadow-emerald-500/10 active:scale-[0.98] transition-all"
+                     >
+                        {loading === `${plan.id}-weekly` ? <Loader2 className="animate-spin h-5 w-5" /> : `Semanal: R$ ${plan.price_weekly.toFixed(2)}`}
+                     </Button>
+                  )}
+                  
+                  {plan.price_monthly > 0 && (
+                     <Button 
+                        onClick={() => handlePurchase(plan.id, 'monthly')}
+                        disabled={!!loading}
+                        className="h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest italic shadow-xl shadow-blue-500/10 active:scale-[0.98] transition-all"
+                     >
+                        {loading === `${plan.id}-monthly` ? <Loader2 className="animate-spin h-5 w-5" /> : `Mensal: R$ ${plan.price_monthly.toFixed(2)}`}
+                     </Button>
+                  )}
+               </div>
                <p className="text-[9px] text-center text-slate-400 font-black uppercase tracking-widest">Ativação instantânea via PIX</p>
             </div>
           </Card>

@@ -74,9 +74,9 @@ export function ApiPlansTab() {
     setFormData({
       name: plan.name,
       description: plan.description || '',
-      price_weekly: plan.price_weekly,
-      price_monthly: plan.price_monthly,
-      daily_limit: plan.daily_limit,
+      price_weekly: plan.price_weekly || 0,
+      price_monthly: plan.price_monthly || 0,
+      daily_limit: plan.daily_limit || 10,
       is_active: plan.is_active
     });
     setEditingId(plan.id);
@@ -151,9 +151,9 @@ export function ApiPlansTab() {
                 <TableCell className="font-black text-white italic">{plan.name}</TableCell>
                 <TableCell className="text-slate-400 font-bold">{plan.daily_limit} con/dia</TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
-                    <span className="text-[11px] font-black text-emerald-400 px-2 py-0.5 bg-emerald-500/10 rounded-lg">R$ {plan.price_weekly}</span>
-                    <span className="text-[11px] font-black text-primary px-2 py-0.5 bg-primary/10 rounded-lg">R$ {plan.price_monthly}</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-black text-emerald-400 px-2 py-0.5 bg-emerald-500/10 rounded-lg w-fit">Semanal: R$ {plan.price_weekly}</span>
+                    <span className="text-[11px] font-black text-blue-500 px-2 py-0.5 bg-blue-500/10 rounded-lg w-fit">Mensal: R$ {plan.price_monthly}</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-right space-x-2">

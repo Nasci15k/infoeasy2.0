@@ -11,32 +11,42 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Calendar, ShieldCheck, UserPlus, Clock } from 'lucide-react';
+import { Calendar, ShieldCheck, UserPlus, Clock, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ApprovalDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onApprove: (planType: 'daily' | 'weekly' | 'monthly', role: string, expiresAt: Date) => void;
+  onApprove: (planType: string, role: string, expiresAt: Date) => void;
   userName: string;
 }
 
 export function ApprovalDialog({ isOpen, onClose, onApprove, userName }: ApprovalDialogProps) {
-  const [planType, setPlanType] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [role, setRole] = useState<string>('usuario');
   const [daysToAdd, setDaysToAdd] = useState(30);
+
+  const { data: plans, isLoading } = useQuery({
+    queryKey: ['available-plans-admin'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('api_plans').select('*').eq('is_active', true).order('name');
+      if (error) throw error;
+      return data;
+    },
+    enabled: isOpen
+  });
 
   const handleApprove = () => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + daysToAdd);
-    onApprove(planType, role, expiresAt);
+    
+    // Find plan name from ID
+    const plan = plans?.find(p => p.id === selectedPlanId);
+    const planName = plan ? plan.name : 'free';
+    
+    onApprove(planName, role, expiresAt);
     onClose();
-  };
-
-  const handlePlanTypeChange = (value: 'daily' | 'weekly' | 'monthly') => {
-    setPlanType(value);
-    if (value === 'daily') setDaysToAdd(1);
-    else if (value === 'weekly') setDaysToAdd(7);
-    else setDaysToAdd(30);
   };
 
   return (
@@ -77,16 +87,19 @@ export function ApprovalDialog({ isOpen, onClose, onApprove, userName }: Approva
 
             <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
-                 <Clock className="h-3 w-3 text-blue-600" /> Ciclo de Vida
+                 <Clock className="h-3 w-3 text-blue-600" /> Plano de Acesso
               </Label>
-              <Select value={planType} onValueChange={handlePlanTypeChange}>
+              <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
                 <SelectTrigger className="h-14 bg-white border-slate-100 rounded-xl font-bold text-slate-900 shadow-sm focus:ring-blue-600">
-                  <SelectValue />
+                  <SelectValue placeholder={isLoading ? "Carregando..." : "Selecione..."} />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-slate-100 rounded-xl shadow-xl">
-                  <SelectItem value="daily" className="font-bold">Vigência Diária</SelectItem>
-                  <SelectItem value="weekly" className="font-bold">Vigência Semanal</SelectItem>
-                  <SelectItem value="monthly" className="font-bold">Vigência Mensal</SelectItem>
+                  <SelectItem value="free" className="font-bold">Plano FREE</SelectItem>
+                  {plans?.map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">
+                       {p.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -1,13 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import * as crypto from "node:crypto";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// Node.js crypto module is available in modern Deno via compatibility layer
-import * as crypto from "node:crypto";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,9 +15,10 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Configuração incompleta');
+    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+      throw new Error('Configuração incompleta do servidor');
     }
 
     const authHeader = req.headers.get('Authorization');
@@ -37,56 +36,69 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { plan, type, amount: customAmount, dbId } = body; 
+    const { type, planId, period, amount: customAmount, dbId } = body; 
     
     let amount = 0;
-    let orderType = type || 'plan'; // 'plan', 'wallet', 'database', 'api_plan'
+    let orderDescription = '';
+    const orderType = type || 'plan';
+
+    const supabaseService = createClient(supabaseUrl, serviceRoleKey);
     
     if (orderType === 'plan') {
-      if (plan === 'diario') amount = 9.90;
-      else if (plan === 'semanal') amount = 24.90;
-      else if (plan === 'mensal') amount = 59.90;
-      else throw new Error('Plano inválido');
+       if (!planId) throw new Error('ID do plano não fornecido');
+       
+       const { data: planData, error: planError } = await supabaseService
+         .from('api_plans')
+         .select('*')
+         .eq('id', planId)
+         .single();
+         
+       if (planError || !planData) throw new Error('Plano de API não encontrado');
+       
+       if (period === 'weekly') {
+         amount = planData.price_weekly;
+         orderDescription = `Assinatura Semanal: ${planData.name}`;
+       } else if (period === 'monthly') {
+         amount = planData.price_monthly;
+         orderDescription = `Assinatura Mensal: ${planData.name}`;
+       } else {
+         throw new Error('Período de plano inválido (semanal/mensal)');
+       }
+
+       if (!amount || amount <= 0) {
+         throw new Error('Este período não está disponível para este plano.');
+       }
+
     } else if (orderType === 'wallet') {
       amount = parseFloat(customAmount);
-      if (isNaN(amount) || amount < 1 || amount > 2000) {
-        throw new Error('Valor de recarga inválido (Mín R$1, Máx R$2000)');
+      if (isNaN(amount) || amount < 1 || amount > 5000) {
+        throw new Error('Valor de recarga inválido (Mín R$1, Máx R$5000)');
       }
+      orderDescription = `Recarga de Carteira: R$ ${amount.toFixed(2)}`;
+
     } else if (orderType === 'database') {
       if (!dbId) throw new Error('ID da base de dados não fornecido');
-      const supabaseService = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-      const { data: dbData } = await supabaseService.from('databases').select('price').eq('id', dbId).single();
+      const { data: dbData } = await supabaseService.from('databases').select('*').eq('id', dbId).single();
       if (!dbData) throw new Error('Base de dados não encontrada');
       amount = dbData.price;
-    } else if (orderType === 'api_plan') {
-       // Logic for API plans can be added here
-       amount = parseFloat(customAmount); // For now
+      orderDescription = `Aquisição de Base: ${dbData.name}`;
     }
 
-    const orderId = `${user.id}_${orderType}_${plan || dbId || 'topup'}_${Date.now()}`;
+    const orderId = `${user.id.substring(0,8)}_${Date.now()}`;
 
     // C7 API Keys
-    const C7_API_KEY = Deno.env.get('C7_API_KEY') || 'c7_live_4072...31ac'; // The one provided by user
-    const C7_API_SECRET = Deno.env.get('C7_API_SECRET') || 'd89a9d2cb8a8dfcdfbf0e05b24ab2ffd49f2a100cba7331d8aae44f8f6ceda0c87960dc3f2ee58234eb83fe87503192098709d66bb340021086a78aade251c6e'; // Given by user
-    
-    // We should ideally fetch real API Key/Secret from bot_settings or env constants
-    const supabaseService = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const { data: c7keys } = await supabaseService.from('bot_settings').select('key,value').in('key', ['c7_api_key', 'c7_api_secret']);
-    
-    let apiKey = C7_API_KEY;
-    let apiSecret = C7_API_SECRET;
+    const apiKey = Deno.env.get('C7_API_KEY');
+    const apiSecret = Deno.env.get('C7_API_SECRET');
 
-    if (c7keys && c7keys.length) {
-      const dbKey = c7keys.find(k => k.key === 'c7_api_key')?.value;
-      const dbSecret = c7keys.find(k => k.key === 'c7_api_secret')?.value;
-      if (dbKey) apiKey = dbKey;
-      if (dbSecret) apiSecret = dbSecret;
+    if (!apiKey || !apiSecret) {
+      throw new Error('Credenciais de pagamento (C7) não configuradas no servidor');
     }
 
     const payloadObj = {
       amount: amount,
       externalId: orderId,
-      callbackUrl: `${supabaseUrl}/functions/v1/c7-webhook`
+      callbackUrl: `${supabaseUrl}/functions/v1/c7-webhook`,
+      description: orderDescription
     };
 
     const payloadBody = JSON.stringify(payloadObj);
@@ -109,8 +121,8 @@ serve(async (req) => {
     const c7Data = await c7Response.json();
 
     if (!c7Response.ok || !c7Data.ok) {
-       console.error("C7 Error", c7Data);
-       throw new Error('Falha ao gerar o pagamento no servidor (C7)');
+       console.error("C7 API Error", c7Data);
+       throw new Error(`Erro no provedor de pagamento: ${c7Data.message || 'Falha na criação'}`);
     }
 
     return new Response(JSON.stringify({ 
@@ -119,7 +131,10 @@ serve(async (req) => {
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
-    console.error(error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    console.error('Payment Error:', error.message);
+    return new Response(JSON.stringify({ success: false, error: error.message }), { 
+      status: 200, // Return 200 to allow frontend to handle the error properly
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   }
 });

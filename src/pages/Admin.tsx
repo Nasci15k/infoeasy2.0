@@ -151,12 +151,31 @@ export default function Admin() {
 
   const handleApproveUser = async (userId: string, planType: string, role: string, expiresAt: Date) => {
     try {
-      const { error } = await supabase.from('profiles').update({ status: 'approved', plan_type: planType, plan_expires_at: expiresAt.toISOString(), updated_at: new Date().toISOString() }).eq('id', userId);
+      const { data: oldProfile } = await supabase.from('profiles').select('plan_type').eq('id', userId).single();
+      
+      const { error } = await supabase.from('profiles').update({ 
+        status: 'approved', 
+        plan_type: planType, 
+        role: role,
+        plan_expires_at: expiresAt.toISOString(), 
+        updated_at: new Date().toISOString() 
+      }).eq('id', userId);
+      
       if (error) throw error;
+
+      // Log assignment history
+      await supabase.from('admin_assignment_logs').insert({
+        user_id: userId,
+        admin_id: profile?.id,
+        plan_name: planType,
+        prev_plan: oldProfile?.plan_type || 'none',
+        new_expires_at: expiresAt.toISOString()
+      });
+
       await refetchUsers();
-      toast({ title: 'Usuário Aprovado' });
+      toast({ title: 'Acesso Atualizado', description: `Plano ${planType} atribuído com sucesso.` });
     } catch (error: any) {
-      toast({ title: 'Erro ao aprovar', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro na operação', description: error.message, variant: 'destructive' });
     }
   };
 
@@ -306,9 +325,12 @@ export default function Admin() {
                         <TableCell className="px-10">
                            <span className="font-black text-emerald-600 text-lg italic">R$ {(user.balance || 0).toFixed(2)}</span>
                         </TableCell>
-                        <TableCell className="text-right px-10">
-                           <Button variant="ghost" size="sm" onClick={() => handleSuspendUser(user.id)} className="text-rose-500 hover:bg-rose-50 font-black uppercase text-[10px] tracking-widest rounded-xl px-6 h-10">Banir</Button>
-                        </TableCell>
+                         <TableCell className="text-right px-10 space-x-2">
+                            <Button variant="outline" size="sm" onClick={() => { setSelectedUser(user); setApprovalDialogOpen(true); }} className="text-blue-600 border-blue-100 hover:bg-blue-50 font-black uppercase text-[10px] tracking-widest rounded-xl px-4 h-10">
+                               Plano
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleSuspendUser(user.id)} className="text-rose-500 hover:bg-rose-50 font-black uppercase text-[10px] tracking-widest rounded-xl px-4 h-10">Banir</Button>
+                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

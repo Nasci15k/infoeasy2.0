@@ -51,7 +51,7 @@ export default function Auth() {
       setOtpSent(true);
       toast({
         title: 'Código enviado!',
-        description: 'Verifique seu e-mail para o código de 6 dígitos.',
+        description: 'Verifique seu e-mail para o código de segurança.',
       });
     } catch (error: any) {
       toast({
@@ -98,60 +98,60 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] p-4 overflow-hidden relative">
       <div className="absolute top-0 left-0 w-full h-full bg-grid-pattern opacity-[0.03] pointer-events-none" />
-      
+
       {/* Background decoration */}
       <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-blue-100/50 rounded-full blur-[140px]" />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-sky-100/40 rounded-full blur-[120px]" />
-      
+
       <div className="w-full max-w-5xl grid lg:grid-cols-2 gap-12 items-center relative z-10 animate-in fade-in zoom-in-95 duration-700">
-        
+
         {/* Branding & Marketing Section */}
         <div className="hidden lg:flex flex-col space-y-10 pr-12">
-            <div className="flex items-center gap-4">
-               <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                  <Shield className="h-7 w-7 text-white" />
-               </div>
-               <h1 className="text-3xl font-black italic text-slate-900 tracking-tighter uppercase">InfoEasy <span className="text-blue-600">2.0</span></h1>
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Shield className="h-7 w-7 text-white" />
             </div>
-            
-            <div className="space-y-4">
-               <h2 className="text-6xl font-black text-slate-900 italic tracking-tighter uppercase leading-[0.9]">
-                  Inteligência de <br /><span className="text-blue-600">Alta Performance</span>
-               </h2>
-               <p className="text-slate-500 text-lg font-medium max-w-md">
-                  O ecossistema definitivo para consultas de dados, análise de risco e inteligência corporativa.
-               </p>
+            <h1 className="text-3xl font-black italic text-slate-900 tracking-tighter uppercase">InfoEasy <span className="text-blue-600">2.0</span></h1>
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="text-6xl font-black text-slate-900 italic tracking-tighter uppercase leading-[0.9]">
+              Inteligência de <br /><span className="text-blue-600">Alta Performance</span>
+            </h2>
+            <p className="text-slate-500 text-lg font-medium max-w-md">
+              O ecossistema definitivo para consultas de dados, análise de risco e inteligência corporativa.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div className="p-6 rounded-[2rem] bg-white shadow-card border border-blue-50/50">
+              <div className="flex items-center gap-3 mb-2">
+                <Database className="h-5 w-5 text-blue-600" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total de APIs</span>
+              </div>
+              <h3 className="text-4xl font-black text-slate-900 italic tracking-tighter">+{stats?.apis || 120}</h3>
+              <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Fontes Reais & Ativas</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-               <div className="p-6 rounded-[2rem] bg-white shadow-card border border-blue-50/50">
-                  <div className="flex items-center gap-3 mb-2">
-                     <Database className="h-5 w-5 text-blue-600" />
-                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total de APIs</span>
-                  </div>
-                  <h3 className="text-4xl font-black text-slate-900 italic tracking-tighter">+{stats?.apis || 120}</h3>
-                  <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Fontes Reais & Ativas</p>
-               </div>
-               
-               <div className="p-6 rounded-[2rem] bg-white shadow-card border border-blue-50/50">
-                  <div className="flex items-center gap-3 mb-2">
-                     <Activity className="h-5 w-5 text-blue-600" />
-                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Módulos</span>
-                  </div>
-                  <h3 className="text-4xl font-black text-slate-900 italic tracking-tighter">+{stats?.modules || 12}</h3>
-                  <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Categorias de Busca</p>
-               </div>
+            <div className="p-6 rounded-[2rem] bg-white shadow-card border border-blue-50/50">
+              <div className="flex items-center gap-3 mb-2">
+                <Activity className="h-5 w-5 text-blue-600" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Módulos</span>
+              </div>
+              <h3 className="text-4xl font-black text-slate-900 italic tracking-tighter">+{stats?.modules || 52}</h3>
+              <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Categorias de Busca</p>
             </div>
+          </div>
 
-            <div className="flex items-center gap-6">
-               <div className="flex -space-x-4">
-                  {[1,2,3,4].map(i => <div key={i} className="h-10 w-10 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">U{i}</div>)}
-               </div>
-               <p className="text-xs font-bold text-slate-500 italic flex items-center gap-2">
-                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                 Junte-se a centenas de agências e profissionais.
-               </p>
+          <div className="flex items-center gap-6">
+            <div className="flex -space-x-4">
+              {[1, 2, 3, 4].map(i => <div key={i} className="h-10 w-10 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">U{i}</div>)}
             </div>
+            <p className="text-xs font-bold text-slate-500 italic flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              Junte-se a centenas de agências e profissionais.
+            </p>
+          </div>
         </div>
 
         {/* Auth Card Section */}
@@ -159,13 +159,13 @@ export default function Auth() {
           <CardHeader className="text-center space-y-2 pt-10 pb-6 lg:hidden">
             <h1 className="text-3xl font-black italic text-slate-900 tracking-tighter uppercase">InfoEasy <span className="text-blue-600">2.0</span></h1>
           </CardHeader>
-          
+
           <CardHeader className="text-center space-y-2 lg:pt-10">
             <CardTitle className="text-3xl font-black tracking-tight text-slate-900 uppercase italic">
               Acesso Restrito
             </CardTitle>
             <CardDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">
-               {isSignUp ? 'Crie sua conta profissional' : 'Identifique-se para entrar'}
+              {isSignUp ? 'Crie sua conta profissional' : 'Identifique-se para entrar'}
             </CardDescription>
           </CardHeader>
 
@@ -173,17 +173,17 @@ export default function Auth() {
             {!otpSent ? (
               <form onSubmit={handleSendOtp} className="space-y-5">
                 <div className="flex p-1 bg-slate-50 rounded-2xl border border-slate-100 mb-2">
-                  <Button 
+                  <Button
                     type="button"
-                    variant="ghost" 
+                    variant="ghost"
                     className={`flex-1 h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!isSignUp ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
                     onClick={() => setIsSignUp(false)}
                   >
                     Entrar
                   </Button>
-                  <Button 
+                  <Button
                     type="button"
-                    variant="ghost" 
+                    variant="ghost"
                     className={`flex-1 h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isSignUp ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
                     onClick={() => setIsSignUp(true)}
                   >
@@ -230,9 +230,9 @@ export default function Auth() {
                   </div>
                 )}
 
-                <Button 
-                  type="submit" 
-                  className="w-full h-14 font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all" 
+                <Button
+                  type="submit"
+                  className="w-full h-14 font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
                   disabled={isLoading}
                 >
                   {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : isSignUp ? 'Solicitar Acesso' : 'Receber Código'}
@@ -256,26 +256,26 @@ export default function Auth() {
                 <div className="space-y-2">
                   <Input
                     type="text"
-                    placeholder="000000"
+                    placeholder="00000000"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    maxLength={6}
+                    maxLength={8}
                     required
                     className="bg-slate-50 border-slate-200 text-center text-4xl font-black tracking-[0.3em] h-20 rounded-3xl focus:ring-blue-600 placeholder:text-slate-200"
                   />
                 </div>
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full h-16 font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 rounded-2xl shadow-xl shadow-blue-500/20"
-                  disabled={isLoading || otp.length < 6}
+                  disabled={isLoading || otp.length < 8}
                 >
                   {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : 'Desbloquear Sistema'}
                 </Button>
 
-                <Button 
-                  type="button" 
-                  variant="ghost" 
+                <Button
+                  type="button"
+                  variant="ghost"
                   className="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600"
                   onClick={() => setOtpSent(false)}
                 >
