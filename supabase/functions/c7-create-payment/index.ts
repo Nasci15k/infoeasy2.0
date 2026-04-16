@@ -48,12 +48,12 @@ serve(async (req) => {
        if (!planId) throw new Error('ID do plano não fornecido');
        
        const { data: planData, error: planError } = await supabaseService
-         .from('api_plans')
+         .from('site_plans')
          .select('*')
          .eq('id', planId)
          .single();
          
-       if (planError || !planData) throw new Error('Plano de API não encontrado');
+       if (planError || !planData) throw new Error('Plano de Consultas não encontrado');
        
        if (period === 'weekly') {
          amount = planData.price_weekly;
@@ -84,7 +84,9 @@ serve(async (req) => {
       orderDescription = `Aquisição de Base: ${dbData.name}`;
     }
 
-    const orderId = `${user.id.substring(0,8)}_${Date.now()}`;
+    const timestamp = Date.now();
+    const itemId = planId || dbId || 'wallet';
+    const orderId = `${user.id}_${orderType}_${itemId}_${timestamp}`;
 
     // C7 API Keys
     const apiKey = Deno.env.get('C7_API_KEY');

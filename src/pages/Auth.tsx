@@ -18,6 +18,7 @@ export default function Auth() {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isWaitingApproval, setIsWaitingApproval] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -78,11 +79,22 @@ export default function Auth() {
       if (error) throw error;
 
       if (data.user) {
-        toast({
-          title: 'Acesso liberado!',
-          description: 'Bem-vindo ao InfoEasy.',
-        });
-        navigate('/');
+        // Check profile status
+        const { data: profileData } = await supabase.from('profiles').select('status').eq('id', data.user.id).single();
+        
+        if (profileData?.status === 'pending') {
+          setIsWaitingApproval(true);
+          toast({
+            title: 'Cadastro em análise',
+            description: 'Aguardando autorização de um administrador.',
+          });
+        } else {
+          toast({
+            title: 'Acesso liberado!',
+            description: 'Bem-vindo ao InfoEasy.',
+          });
+          navigate('/');
+        }
       }
     } catch (error: any) {
       toast({
@@ -243,6 +255,30 @@ export default function Auth() {
                   Seu acesso será liberado instantaneamente.
                 </p>
               </form>
+            ) : isWaitingApproval ? (
+              <div className="space-y-8 animate-in zoom-in-95 duration-500 text-center py-6">
+                <div className="h-24 w-24 bg-blue-50 rounded-[2rem] flex items-center justify-center mx-auto border border-blue-100/50 shadow-inner">
+                   <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+                </div>
+                <div className="space-y-4">
+                   <h3 className="text-3xl font-black text-slate-900 italic uppercase italic tracking-tighter">Conta em <span className="text-blue-600">Análise</span></h3>
+                   <p className="text-sm font-bold text-slate-500 leading-relaxed px-4">
+                      Seu acesso está aguardando <span className="text-blue-600">autorização manual</span> de um administrador. 
+                      Você será notificado assim que o sistema for liberado para você.
+                   </p>
+                </div>
+                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 mt-6">
+                   <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">Status Atual</p>
+                   <p className="text-xs font-black text-blue-600 uppercase mt-2 italic">Aguardando Aprovação...</p>
+                </div>
+                <Button 
+                   variant="ghost" 
+                   className="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 mt-4"
+                   onClick={() => { setOtpSent(false); setIsWaitingApproval(false); }}
+                >
+                   Voltar ao Login
+                </Button>
+              </div>
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-6 animate-in zoom-in-95 duration-500">
                 <div className="text-center space-y-4">

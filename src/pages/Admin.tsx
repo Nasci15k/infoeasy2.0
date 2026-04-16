@@ -245,7 +245,7 @@ export default function Admin() {
               { value: 'pending', label: `Pendentes (${pendingUsers.length})`, icon: UserCheck },
               { value: 'approved', label: 'Usuários', icon: Users },
               { value: 'databases', label: 'Bases de Dados', icon: Database },
-              { value: 'plans', label: 'Planos API', icon: Zap },
+              { value: 'plans', label: 'Planos Consultas', icon: Sparkles },
               { value: 'bots', label: 'Configuração Bots', icon: Bot },
               { value: 'proxy', label: 'Gestão APIs', icon: Terminal },
             ].map(tab => (

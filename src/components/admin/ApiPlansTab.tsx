@@ -27,7 +27,7 @@ export function ApiPlansTab() {
   const { data: plans, isLoading } = useQuery({
     queryKey: ['admin-api-plans'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('api_plans').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('site_plans').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     }
@@ -36,10 +36,10 @@ export function ApiPlansTab() {
   const upsertMutation = useMutation({
     mutationFn: async (data: any) => {
       if (editingId) {
-        const { error } = await supabase.from('api_plans').update(data).eq('id', editingId);
+        const { error } = await supabase.from('site_plans').update(data).eq('id', editingId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('api_plans').insert([data]);
+        const { error } = await supabase.from('site_plans').insert([data]);
         if (error) throw error;
       }
     },
@@ -56,7 +56,7 @@ export function ApiPlansTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('api_plans').delete().eq('id', id);
+      const { error } = await supabase.from('site_plans').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {

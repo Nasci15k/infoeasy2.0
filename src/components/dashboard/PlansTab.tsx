@@ -16,7 +16,7 @@ export function PlansTab() {
   const { data: plans, isLoading } = useQuery({
     queryKey: ['available-plans'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('api_plans').select('*').eq('is_active', true).order('price_monthly', { ascending: true });
+      const { data, error } = await supabase.from('site_plans').select('*').eq('is_active', true).order('price_monthly', { ascending: true });
       if (error) throw error;
       return data;
     }
@@ -28,10 +28,11 @@ export function PlansTab() {
       const { data, error } = await supabase.functions.invoke('c7-create-payment', {
         body: { type: 'plan', planId, period: type }
       });
-      if (error) throw error;
-      setPixData(data);
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || 'Falha ao gerar pagamento');
+      setPixData(data.payment); // payment object from C7 response
     } catch (err: any) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro ao gerar Pix', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(null);
     }
@@ -48,7 +49,7 @@ export function PlansTab() {
         </div>
         
         <div className="bg-white p-8 rounded-[2rem] mx-auto w-fit shadow-lg border border-slate-100">
-           <img src={pixData.pixQrCode} alt="QR Code" className="w-64 h-64" />
+           <img src={pixData.qrCodeBase64} alt="QR Code PIX" className="w-64 h-64" />
         </div>
 
         <div className="space-y-4">
