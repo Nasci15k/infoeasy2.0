@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import QueryPage from "./pages/QueryPage";
@@ -24,14 +25,20 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Index />} />
+            {/* Public routes */}
             <Route path="/auth" element={<Auth />} />
-            <Route path="/:categorySlug" element={<QueryPage />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/reseller" element={<Reseller />} />
-            <Route path="/tempmail" element={<TempMail />} />
             <Route path="/share/:token" element={<SharedQuery />} />
+
+            {/* Protected routes — require auth + admin approval */}
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/:categorySlug" element={<ProtectedRoute><QueryPage /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+            <Route path="/reseller" element={<ProtectedRoute><Reseller /></ProtectedRoute>} />
+            <Route path="/tempmail" element={<ProtectedRoute><TempMail /></ProtectedRoute>} />
+
+            {/* Admin only */}
+            <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

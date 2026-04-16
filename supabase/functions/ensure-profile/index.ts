@@ -71,6 +71,10 @@ serve(async (req) => {
           email: user.email!,
           full_name: fullName,
           seller_code: sellerCode,
+          status: 'pending',   // Must be approved by admin before accessing the platform
+          role: 'usuario',
+          balance: 0,
+          plan_type: 'free',
         })
         .select('*')
         .single();

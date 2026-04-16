@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserCheck, UserX, Settings, BarChart2, Store, Bot, Save, Loader2, Send, Terminal, Globe, Eye, EyeOff, Database, Zap, Users, LayoutDashboard, Search } from 'lucide-react';
+import { Shield, UserCheck, UserX, Settings, BarChart2, Store, Bot, Save, Loader2, Send, Terminal, Globe, Eye, EyeOff, Database, Zap, Sparkles, Users, LayoutDashboard, Search } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { AdminStats } from '@/components/admin/AdminStats';
 import { ApprovalDialog } from '@/components/admin/ApprovalDialog';
