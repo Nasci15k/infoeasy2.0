@@ -131,6 +131,8 @@ function DatabasesSection() {
       const { data, error } = await supabase
         .from('databases')
         .select('*')
+        .eq('product_type', 'database')
+        .eq('is_active', true)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
@@ -326,151 +328,220 @@ function DatabasesSection() {
                       </Button>
                     )}
                   </div>
+   function CheckersSection() {
+  const { profile } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState<string | null>(null);
+  const [pixData, setPixData] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const { data: checkers, isLoading } = useQuery({
+    queryKey: ['available-checkers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('databases')
+        .select('*')
+        .eq('product_type', 'checker')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: purchased } = useQuery({
+    queryKey: ['purchased-checkers', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const { data, error } = await supabase
+        .from('purchased_databases')
+        .select('database_id')
+        .eq('user_id', profile?.id);
+      if (error) throw error;
+      return data.map((p) => p.database_id);
+    },
+    enabled: !!profile?.id,
+  });
+
+  const handlePurchase = async (checkerId: string) => {
+    setLoading(checkerId);
+    try {
+      const { data, error } = await supabase.functions.invoke('c7-create-payment', {
+        body: { type: 'database', dbId: checkerId },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || 'Falha ao gerar pagamento');
+      setPixData(data.payment);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const filteredCheckers = checkers?.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.description || '').toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  if (isLoading)
+    return (
+      <div className="flex justify-center p-20">
+        <Loader2 className="animate-spin h-10 w-10 text-indigo-600" />
+      </div>
+    );
+
+  if (pixData) {
+    const qrCode = pixData.qrCodeBase64 || pixData.pixQrCode || pixData.qr_code_url;
+    const pixCode = pixData.pixCopiaECola || pixData.copia_e_cola || pixData.emv;
+    return (
+      <div className="max-w-md mx-auto space-y-10 p-12 bg-white border border-slate-100 shadow-card rounded-[3rem] text-center animate-in zoom-in-95 duration-500">
+        <div>
+          <h3 className="text-3xl font-black uppercase text-indigo-900 italic tracking-tighter">
+            Ativar <span className="text-indigo-600">Checker</span>
+          </h3>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">
+            Acesso vitalício ao módulo de verificação
+          </p>
+        </div>
+        {qrCode && (
+          <div className="bg-white p-8 rounded-[2rem] mx-auto w-fit shadow-lg border border-slate-100">
+            <img src={qrCode} alt="QR Code" className="w-64 h-64" />
+          </div>
+        )}
+        <div className="space-y-4">
+          {pixCode && (
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(pixCode);
+                toast({ title: 'Copiado!', description: 'Código Pix copiado com sucesso.' });
+              }}
+              className="w-full h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest gap-2 shadow-xl shadow-indigo-500/20"
+            >
+              Copiar Pix (Copia e Cola)
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            onClick={() => setPixData(null)}
+            className="w-full h-12 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:text-indigo-600"
+          >
+            Cancelar e Escolher Outro
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-10">
+      <div className="relative max-w-2xl group">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
+        <Input
+          placeholder="Pesquisar verificadores (Checkers)..."
+          className="pl-14 h-14 bg-white border-slate-100 rounded-2xl shadow-sm focus:ring-indigo-600 font-bold text-slate-900"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {(!filteredCheckers || filteredCheckers.length === 0) ? (
+        <div className="text-center py-20 space-y-4">
+          <div className="h-20 w-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto border border-slate-100">
+            <Shield className="h-10 w-10 text-slate-200" />
+          </div>
+          <h3 className="text-2xl font-black text-slate-300 uppercase italic tracking-tighter">
+            Nenhum checker disponível
+          </h3>
+          <p className="text-slate-400 font-bold text-sm">
+            Novos módulos governamentais em breve.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+          {filteredCheckers?.map((c) => {
+            const isOwned = purchased?.includes(c.id);
+            return (
+              <Card
+                key={c.id}
+                className="bg-white border-white shadow-card rounded-[3rem] overflow-hidden group hover:shadow-[0_40px_80px_-20px_rgba(79,70,229,0.12)] hover:-translate-y-3 transition-all duration-500 border-t-4 border-t-transparent hover:border-t-indigo-600"
+              >
+                <div className="relative h-48 overflow-hidden">
+                  {c.photo_url ? (
+                    <img
+                      src={c.photo_url}
+                      alt={c.name}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-indigo-50 flex items-center justify-center">
+                      <Shield className="h-16 w-16 text-indigo-100" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
+                  <div className="absolute bottom-4 left-6 flex items-center gap-3">
+                    <div
+                      className={`h-10 w-10 rounded-xl flex items-center justify-center shadow-lg transition-colors ${isOwned ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-indigo-600 text-white shadow-indigo-500/20'}`}
+                    >
+                      {isOwned ? <Unlock className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
+                    </div>
+                    <Badge className="bg-indigo-50 text-indigo-600 border-none font-black text-[9px] uppercase tracking-widest">
+                       {isOwned ? 'Ativado' : 'Premium'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <CardContent className="p-8 space-y-6">
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">
+                      {c.name}
+                    </h3>
+                    <p className="text-xs text-slate-400 font-bold leading-relaxed line-clamp-3">
+                      {c.description || 'Módulo de verificação em tempo real com alta precisão.'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                        Ativação Vitalícia
+                      </p>
+                      <p className="text-2xl font-black text-slate-900 italic tracking-tighter">
+                        R$ {c.price.toFixed(2)}
+                      </p>
+                    </div>
+                    {isOwned ? (
+                      <Button
+                        className="bg-indigo-50 hover:bg-indigo-100 h-12 rounded-2xl px-6 gap-2 font-black uppercase text-[10px] tracking-widest text-indigo-700"
+                        asChild
+                      >
+                        <a href={c.database_url} target="_blank" rel="noopener noreferrer">
+                          Acessar <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handlePurchase(c.id)}
+                        disabled={!!loading}
+                        className="bg-indigo-600 hover:bg-indigo-700 h-12 rounded-2xl px-6 gap-2 font-black uppercase text-[10px] tracking-widest text-white shadow-xl shadow-indigo-500/20"
+                      >
+                        {loading === c.id ? (
+                          <Loader2 className="animate-spin h-5 w-5" />
+                        ) : (
+                          <>
+                            <Zap className="h-4 w-4" /> Ativar Agora
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Checkers Placeholder ─────────────────────────────────────────────
-function CheckersSection() {
-  const { data: checkers, isLoading } = useQuery({
-    queryKey: ['checker-apis'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('apis')
-        .select('*')
-        .in('group_name', ['SERPRO', 'SINESP', 'DATASUS', 'SISREG', 'Checkers'])
-        .eq('is_active', true)
-        .order('name');
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const checkerMeta: Record<string, { color: string; icon: string; description: string }> = {
-    SERPRO: {
-      color: 'blue',
-      icon: '🏛️',
-      description: 'Receita Federal — Validação oficial de CPF e dados cadastrais via SERPRO.',
-    },
-    SINESP: {
-      color: 'rose',
-      icon: '🚨',
-      description: 'Sistema Nacional de Informações de Segurança Pública — Veículos e mandados.',
-    },
-    DATASUS: {
-      color: 'emerald',
-      icon: '🏥',
-      description: 'Ministério da Saúde — Vacinas, SUS, regulação e histórico médico.',
-    },
-    SISREG: {
-      color: 'amber',
-      icon: '📋',
-      description: 'Sistema de Regulação em Saúde — Consultas e filas do SUS.',
-    },
-    Checkers: {
-      color: 'purple',
-      icon: '🔍',
-      description: 'Módulos de verificação governamental e institucional.',
-    },
-  };
-
-  if (isLoading)
-    return (
-      <div className="flex justify-center p-20">
-        <Loader2 className="animate-spin h-10 w-10 text-blue-600" />
-      </div>
-    );
-
-  if (!checkers || checkers.length === 0) {
-    return (
-      <div className="text-center py-24 space-y-6">
-        <div className="h-24 w-24 bg-blue-50 rounded-[2rem] flex items-center justify-center mx-auto border border-blue-100">
-          <Shield className="h-12 w-12 text-blue-200" />
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-3xl font-black text-slate-300 uppercase italic tracking-tighter">
-            Checkers em Breve
-          </h3>
-          <p className="text-slate-400 font-bold text-sm max-w-sm mx-auto">
-            Os módulos de verificação governamental (SERPRO, SINESP, DATASUS, SISREG III) serão
-            disponibilizados em breve.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 max-w-2xl mx-auto">
-          {['🏛️ SERPRO', '🚨 SINESP', '🏥 DATASUS', '📋 SISREG III'].map((label) => (
-            <div
-              key={label}
-              className="p-5 bg-white rounded-2xl border border-slate-100 shadow-sm text-center"
-            >
-              <p className="text-2xl mb-2">{label.split(' ')[0]}</p>
-              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                {label.split(' ').slice(1).join(' ')}
-              </p>
-              <div className="mt-3 px-2 py-1 bg-slate-50 rounded-lg">
-                <p className="text-[9px] font-black uppercase text-slate-300 tracking-widest">
-                  Em Breve
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Group by group_name
-  const grouped: Record<string, typeof checkers> = {};
-  checkers.forEach((api) => {
-    const g = api.group_name || 'Checkers';
-    if (!grouped[g]) grouped[g] = [];
-    grouped[g].push(api);
-  });
-
-  return (
-    <div className="space-y-10">
-      {Object.entries(grouped).map(([group, apis]) => {
-        const meta = checkerMeta[group] || checkerMeta['Checkers'];
-        return (
-          <div key={group} className="space-y-4">
-            <div className="flex items-start gap-4 p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm">
-              <span className="text-4xl">{meta.icon}</span>
-              <div>
-                <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">
-                  {group}
-                </h3>
-                <p className="text-xs font-bold text-slate-500 mt-1">{meta.description}</p>
-              </div>
-              <Badge className="ml-auto bg-blue-50 text-blue-600 border-blue-100 font-black text-[10px] uppercase tracking-widest">
-                {apis.length} módulo{apis.length !== 1 ? 's' : ''}
-              </Badge>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-4">
-              {apis.map((api) => (
-                <div
-                  key={api.id}
-                  className="flex items-center gap-4 p-5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-blue-200 transition-all"
-                >
-                  <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                    <Shield className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">
-                      {api.name}
-                    </p>
-                  </div>
-                  <div className="h-2 w-2 rounded-full bg-emerald-400 flex-shrink-0" />
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

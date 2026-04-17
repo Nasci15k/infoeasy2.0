@@ -25,8 +25,20 @@ export function AdminProductsTab() {
     endpoint: '',
     slug: '',
     group_name: '',
+    category_id: '',
     price_vip: 0,
     is_active: true,
+    description: '',
+    icon: '',
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ['admin-categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('api_categories').select('*').order('name');
+      if (error) throw error;
+      return data;
+    }
   });
 
   const { data: apis, isLoading: loadingApis } = useQuery({
@@ -69,7 +81,7 @@ export function AdminProductsTab() {
   });
 
   const resetApiForm = () => {
-    setApiForm({ name: '', endpoint: '', slug: '', group_name: '', price_vip: 0, is_active: true });
+    setApiForm({ name: '', endpoint: '', slug: '', group_name: '', category_id: '', price_vip: 0, is_active: true, description: '', icon: '' });
     setEditingApiId(null);
   };
 
@@ -79,8 +91,11 @@ export function AdminProductsTab() {
       endpoint: api.endpoint || '',
       slug: api.slug || '',
       group_name: api.group_name || '',
+      category_id: api.category_id || '',
       price_vip: api.price_vip || 0,
       is_active: api.is_active !== false,
+      description: api.description || '',
+      icon: api.icon || '',
     });
     setEditingApiId(api.id);
     setIsApiOpen(true);
@@ -94,7 +109,9 @@ export function AdminProductsTab() {
     description: '',
     price: 0,
     photo_url: '',
-    database_url: ''
+    database_url: '',
+    product_type: 'database',
+    is_active: true
   });
 
   const { data: databases, isLoading: loadingDbs } = useQuery({
@@ -155,8 +172,9 @@ export function AdminProductsTab() {
 
   if (loadingApis || loadingDbs) return <div className="flex justify-center p-12"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
 
-  const apisGrouped = apis?.filter(a => a.group_name !== 'Checkers' && a.group_name !== 'SERPRO' && a.group_name !== 'SINESP' && a.group_name !== 'DATASUS' && a.group_name !== 'SISREG') || [];
-  const checkersGrouped = apis?.filter(a => ['Checkers', 'SERPRO', 'SINESP', 'DATASUS', 'SISREG'].includes(a.group_name)) || [];
+  const apisGrouped = apis?.filter(a => !['Checkers', 'SERPRO', 'SINESP', 'DATASUS', 'SISREG'].includes(a.group_name)) || [];
+  const checkersList = databases?.filter(db => db.product_type === 'checker') || [];
+  const databasesList = databases?.filter(db => db.product_type === 'database') || [];
 
   return (
     <div className="space-y-6">
@@ -179,101 +197,121 @@ export function AdminProductsTab() {
           <TabsTrigger value="databases" className="rounded-xl px-6 py-3 font-bold text-xs uppercase data-[state=active]:bg-emerald-600 data-[state=active]:text-white"><Database className="h-4 w-4 mr-2" /> Bases de Dados</TabsTrigger>
         </TabsList>
 
-        {/* --- ABA APIS & CHECKERS COMUM --- */}
-        {['apis', 'checkers'].map(tabValue => {
-          const isCheckerTab = tabValue === 'checkers';
-          const list = isCheckerTab ? checkersGrouped : apisGrouped;
-          const bgTheme = isCheckerTab ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-orange-600 hover:bg-orange-700';
-
-          return (
-            <TabsContent key={tabValue} value={tabValue} className="space-y-6">
-              <div className="flex justify-end">
-                <Dialog open={isApiOpen} onOpenChange={(v) => { setIsApiOpen(v); if (!v) resetApiForm(); }}>
-                  <DialogTrigger asChild>
-                    <Button className={`${bgTheme} text-white gap-2 rounded-xl h-11 font-bold uppercase text-[10px]`}>
-                      <Plus className="h-4 w-4" /> {isCheckerTab ? 'Novo Checker' : 'Nova API'}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-white text-slate-900 border max-w-lg rounded-3xl">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl font-black uppercase tracking-tight">{editingApiId ? 'Editar Módulo' : 'Novo Módulo'}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 pt-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Nome Público</Label>
-                          <Input value={apiForm.name} onChange={e => setApiForm({...apiForm, name: e.target.value})} className="bg-slate-50 border-slate-200 font-bold rounded-xl" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Slug / Comando</Label>
-                          <Input value={apiForm.slug} onChange={e => setApiForm({...apiForm, slug: e.target.value.toLowerCase()})} className="bg-slate-50 border-slate-200 font-mono text-xs rounded-xl" placeholder="ex: cpf-plus" />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Endpoint Real (URL ou Roteamento)</Label>
-                        <Input value={apiForm.endpoint} onChange={e => setApiForm({...apiForm, endpoint: e.target.value})} className="bg-slate-50 border-slate-200 font-mono text-xs rounded-xl" placeholder="tconect:/consulta?..." />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Grupo / Categoria</Label>
-                          <Input value={apiForm.group_name} onChange={e => setApiForm({...apiForm, group_name: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl" placeholder="Ex: IDENTIFICAÇÃO" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Status</Label>
-                          <Select value={apiForm.is_active ? '1' : '0'} onValueChange={v => setApiForm({...apiForm, is_active: v === '1'})}>
-                            <SelectTrigger className="bg-slate-50 border-slate-200 rounded-xl"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="1">Ativo (Online)</SelectItem>
-                              <SelectItem value="0">Inativo (Manutenção)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <Button onClick={() => upsertApiMutation.mutate(apiForm)} disabled={upsertApiMutation.isPending} className={`w-full ${bgTheme} text-white h-12 rounded-xl font-black uppercase tracking-widest mt-4`}>
-                        {upsertApiMutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : 'Salvar Módulo'}
-                      </Button>
+        <TabsContent value="apis" className="space-y-6">
+          <div className="flex justify-end">
+            <Dialog open={isApiOpen} onOpenChange={(v) => { setIsApiOpen(v); if (!v) resetApiForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="bg-orange-600 hover:bg-orange-700 text-white gap-2 rounded-xl h-11 font-bold uppercase text-[10px]">
+                  <Plus className="h-4 w-4" /> Nova API
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-white text-slate-900 border max-w-lg rounded-3xl">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight">{editingApiId ? 'Editar Módulo' : 'Novo Módulo'}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Nome Público</Label>
+                      <Input value={apiForm.name} onChange={e => setApiForm({...apiForm, name: e.target.value})} className="bg-slate-50 border-slate-200 font-bold rounded-xl" />
                     </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              <div className="bg-white border rounded-[2rem] overflow-hidden shadow-sm">
-                <Table>
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest px-6">Módulo / Slug</TableHead>
-                      <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Endpoint Routing</TableHead>
-                      <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Grupo</TableHead>
-                      <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest text-right px-6">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {list.map(api => (
-                      <TableRow key={api.id} className="hover:bg-slate-50/50">
-                        <TableCell className="px-6 py-4">
-                          <div className="font-bold text-slate-800">{api.name}</div>
-                          <Badge variant="outline" className="text-[9px] mt-1 uppercase bg-slate-100">{api.slug || 'SEM SLUG'}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <code className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-600 font-mono">{String(api.endpoint).substring(0, 40)}{String(api.endpoint).length > 40 && '...'}</code>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-[9px] uppercase border-none">{api.group_name || 'GERAL'}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right px-6 space-x-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEditApi(api)} className="h-8 w-8 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Pencil className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => { if(confirm('Excluir módulo permanentemente?')) deleteApiMutation.mutate(api.id); }} className="h-8 w-8 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"><Trash2 className="h-3.5 w-3.5" /></Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {list.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-10 font-bold text-slate-400">Nenhum módulo cadastrado.</TableCell></TableRow>}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-          );
-        })}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Slug / Comando</Label>
+                      <Input value={apiForm.slug} onChange={e => setApiForm({...apiForm, slug: e.target.value.toLowerCase()})} className="bg-slate-50 border-slate-200 font-mono text-xs rounded-xl" placeholder="ex: cpf-plus" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Endpoint Real (URL ou Roteamento)</Label>
+                    <Input value={apiForm.endpoint} onChange={e => setApiForm({...apiForm, endpoint: e.target.value})} className="bg-slate-50 border-slate-200 font-mono text-xs rounded-xl" placeholder="tconect:/consulta?..." />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Categoria Principal</Label>
+                      <Select value={apiForm.category_id} onValueChange={v => setApiForm({...apiForm, category_id: v})}>
+                        <SelectTrigger className="bg-slate-50 border-slate-200 rounded-xl"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                        <SelectContent>
+                          {categories?.map(cat => (
+                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Subgrupo / Label</Label>
+                      <Input value={apiForm.group_name} onChange={e => setApiForm({...apiForm, group_name: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl" placeholder="Ex: IDENTIFICAÇÃO" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Preço VIP (R$)</Label>
+                      <Input type="number" value={apiForm.price_vip} onChange={e => setApiForm({...apiForm, price_vip: Number(e.target.value)})} className="bg-slate-50 border-slate-200 rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Status</Label>
+                      <Select value={apiForm.is_active ? '1' : '0'} onValueChange={v => setApiForm({...apiForm, is_active: v === '1'})}>
+                        <SelectTrigger className="bg-slate-50 border-slate-200 rounded-xl"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Ativo (Online)</SelectItem>
+                          <SelectItem value="0">Inativo (Manutenção)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button onClick={() => upsertApiMutation.mutate(apiForm)} disabled={upsertApiMutation.isPending} className="w-full bg-orange-600 hover:bg-orange-700 text-white h-12 rounded-xl font-black uppercase tracking-widest mt-4">
+                    {upsertApiMutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : 'Salvar Módulo'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
 
-        {/* --- ABA BASES DE DADOS --- */}
+          <div className="bg-white border rounded-[2rem] overflow-hidden shadow-sm">
+            <Table>
+              <TableHeader className="bg-slate-50">
+                <TableRow>
+                  <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest px-6">Módulo / Slug</TableHead>
+                  <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Endpoint Routing</TableHead>
+                  <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Grupo</TableHead>
+                  <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest text-right px-6">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {apisGrouped.map(api => (
+                  <TableRow key={api.id} className="hover:bg-slate-50/50">
+                    <TableCell className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="font-bold text-slate-800">{api.name}</div>
+                        {!api.is_active && <Badge className="bg-rose-100 text-rose-600 border-none text-[8px]">OFFLINE</Badge>}
+                      </div>
+                      <Badge variant="outline" className="text-[9px] mt-1 uppercase bg-slate-100">{api.slug || 'SEM SLUG'}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <code className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-600 font-mono">{String(api.endpoint).substring(0, 40)}{String(api.endpoint).length > 40 && '...'}</code>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-[9px] uppercase border-none">{api.group_name || 'GERAL'}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right px-6 space-x-1">
+                      <Button variant="ghost" size="icon" onClick={() => handleEditApi(api)} className="h-8 w-8 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => { if(confirm('Excluir módulo permanentemente?')) deleteApiMutation.mutate(api.id); }} className="h-8 w-8 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {apisGrouped.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-10 font-bold text-slate-400">Nenhuma API cadastrada.</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="checkers" className="space-y-6">
+          <div className="flex justify-end">
+            <Button onClick={() => { resetDbForm(); setDbForm(f => ({...f, product_type: 'checker'})); setIsDbOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 rounded-xl h-11 font-bold uppercase text-[10px]">
+              <Plus className="h-4 w-4" /> Novo Checker
+            </Button>
+          </div>
+          <ProductsTable list={checkersList} type="checker" onEdit={handleEditDb} onDelete={(id) => deleteDbMutation.mutate(id)} />
+        </TabsContent>
+
         <TabsContent value="databases" className="space-y-6">
           <div className="flex justify-end">
             <Dialog open={isDbOpen} onOpenChange={(v) => { setIsDbOpen(v); if (!v) resetDbForm(); }}>
@@ -282,18 +320,30 @@ export function AdminProductsTab() {
                   <Plus className="h-4 w-4" /> Nova Base de Dados
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-white text-slate-900 border max-w-md rounded-3xl">
+              <DialogContent className="bg-white text-slate-900 border max-w-lg rounded-3xl">
                  <DialogHeader>
-                    <DialogTitle className="text-xl font-black uppercase tracking-tight">{editingDbId ? 'Editar Base' : 'Cadastrar Nova Base'}</DialogTitle>
+                    <DialogTitle className="text-xl font-black uppercase tracking-tight">{editingDbId ? 'Editar Produto' : 'Cadastrar Novo Produto'}</DialogTitle>
                  </DialogHeader>
                  <div className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                       <Label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Nome da Base</Label>
-                       <Input value={dbForm.name} onChange={e => setDbForm({...dbForm, name: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl" placeholder="Ex: Base Nacional Completa" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                         <Label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Nome do Produto</Label>
+                         <Input value={dbForm.name} onChange={e => setDbForm({...dbForm, name: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl" placeholder="Ex: Base Nacional Completa" />
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Tipo</Label>
+                         <Select value={dbForm.product_type} onValueChange={v => setDbForm({...dbForm, product_type: v})}>
+                            <SelectTrigger className="bg-slate-50 border-slate-200 rounded-xl"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                               <SelectItem value="database">Base de Dados</SelectItem>
+                               <SelectItem value="checker">Checker</SelectItem>
+                            </SelectContent>
+                         </Select>
+                      </div>
                     </div>
                     <div className="space-y-2">
-                       <Label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Descrição</Label>
-                       <Textarea value={dbForm.description} onChange={e => setDbForm({...dbForm, description: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl" />
+                       <Label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Descrição curta</Label>
+                       <Textarea value={dbForm.description} onChange={e => setDbForm({...dbForm, description: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl h-20" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                        <div className="space-y-2">
@@ -305,56 +355,82 @@ export function AdminProductsTab() {
                           <Input value={dbForm.photo_url} onChange={e => setDbForm({...dbForm, photo_url: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl" />
                        </div>
                     </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Link do Arquivo VIP</Label>
-                       <Input value={dbForm.database_url} onChange={e => setDbForm({...dbForm, database_url: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                         <Label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Link do Arquivo VIP</Label>
+                         <Input value={dbForm.database_url} onChange={e => setDbForm({...dbForm, database_url: e.target.value})} className="bg-slate-50 border-slate-200 rounded-xl font-mono text-xs" />
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Status</Label>
+                         <Select value={dbForm.is_active ? '1' : '0'} onValueChange={v => setDbForm({...dbForm, is_active: v === '1'})}>
+                            <SelectTrigger className="bg-slate-50 border-slate-200 rounded-xl"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                               <SelectItem value="1">Ativo</SelectItem>
+                               <SelectItem value="0">Inativo</SelectItem>
+                            </SelectContent>
+                         </Select>
+                      </div>
                     </div>
                     <Button onClick={() => upsertDbMutation.mutate(dbForm)} disabled={upsertDbMutation.isPending} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-black uppercase tracking-widest mt-4">
-                       {upsertDbMutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : 'Salvar Base'}
+                       {upsertDbMutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : 'Confirmar Produto'}
                     </Button>
                  </div>
               </DialogContent>
             </Dialog>
           </div>
-          <div className="bg-white border rounded-[2rem] overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                 <TableRow>
-                    <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest px-6">Preview</TableHead>
-                    <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Detalhes</TableHead>
-                    <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Valor</TableHead>
-                    <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest text-right px-6">Ações</TableHead>
-                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                 {databases?.map(db => (
-                    <TableRow key={db.id} className="hover:bg-slate-50/50">
-                       <TableCell className="px-6 py-4">
-                          {db.photo_url ? (
-                             <img src={db.photo_url} alt={db.name} className="h-10 w-10 rounded-lg object-cover border" />
-                          ) : (
-                             <div className="h-10 w-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-                                <ImageIcon className="h-5 w-5 text-emerald-600" />
-                             </div>
-                          )}
-                       </TableCell>
-                       <TableCell>
-                          <div className="font-bold text-slate-800">{db.name}</div>
-                          <div className="text-[10px] text-slate-400 max-w-[250px] truncate">{db.description}</div>
-                       </TableCell>
-                       <TableCell><span className="font-black text-emerald-600 text-sm">R$ {db.price.toFixed(2)}</span></TableCell>
-                       <TableCell className="text-right px-6 space-x-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEditDb(db)} className="h-8 w-8 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Pencil className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => { if(confirm('Excluir base?')) deleteDbMutation.mutate(db.id); }} className="h-8 w-8 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"><Trash2 className="h-3.5 w-3.5" /></Button>
-                       </TableCell>
-                    </TableRow>
-                 ))}
-                 {databases?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-10 font-bold text-slate-400">Nenhuma base cadastrada.</TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </div>
+          <ProductsTable list={databasesList} type="database" onEdit={handleEditDb} onDelete={(id) => deleteDbMutation.mutate(id)} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function ProductsTable({ list, type, onEdit, onDelete }: { list: any[], type: 'database' | 'checker', onEdit: (item: any) => void, onDelete: (id: string) => void }) {
+  return (
+    <div className="bg-white border rounded-[2rem] overflow-hidden shadow-sm">
+      <Table>
+        <TableHeader className="bg-slate-50">
+          <TableRow>
+            <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest px-6">Preview</TableHead>
+            <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Produto</TableHead>
+            <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Valor</TableHead>
+            <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest">Status</TableHead>
+            <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest text-right px-6">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {list.map(db => (
+            <TableRow key={db.id} className="hover:bg-slate-50/50">
+              <TableCell className="px-6 py-4">
+                {db.photo_url ? (
+                  <img src={db.photo_url} alt={db.name} className="h-10 w-10 rounded-lg object-cover border" />
+                ) : (
+                  <div className={`h-10 w-10 rounded-lg ${type === 'checker' ? 'bg-indigo-50 border-indigo-100' : 'bg-emerald-50 border-emerald-100'} border flex items-center justify-center`}>
+                    {type === 'checker' ? <ShieldCheck className="h-5 w-5 text-indigo-600" /> : <Database className="h-5 w-5 text-emerald-600" />}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell>
+                <div className="font-bold text-slate-800 uppercase text-[11px] tracking-tight">{db.name}</div>
+                <div className="text-[10px] text-slate-400 max-w-[250px] truncate">{db.description}</div>
+              </TableCell>
+              <TableCell><span className="font-black text-slate-700 text-sm italic tracking-tighter">R$ {db.price.toFixed(2)}</span></TableCell>
+              <TableCell>
+                {db.is_active ? (
+                  <Badge className="bg-emerald-100 text-emerald-600 border-none text-[8px] uppercase">Ativo</Badge>
+                ) : (
+                  <Badge className="bg-slate-100 text-slate-400 border-none text-[8px] uppercase">Pausado</Badge>
+                )}
+              </TableCell>
+              <TableCell className="text-right px-6 space-x-1">
+                <Button variant="ghost" size="icon" onClick={() => onEdit(db)} className="h-8 w-8 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Pencil className="h-3.5 w-3.5" /></Button>
+                <Button variant="ghost" size="icon" onClick={() => { if(confirm('Excluir produto?')) onDelete(db.id); }} className="h-8 w-8 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"><Trash2 className="h-3.5 w-3.5" /></Button>
+              </TableCell>
+            </TableRow>
+          ))}
+          {list.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-10 font-bold text-slate-400 uppercase text-[10px] tracking-widest">Nenhum {type} cadastrado.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
     </div>
   );
 }
