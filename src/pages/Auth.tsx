@@ -4,9 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Shield, Search, Database, Mail, Activity, CheckCircle2 } from 'lucide-react';
+import { Loader2, Shield, Search, Database, Mail, Activity, CheckCircle2, FileText } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useQuery } from '@tanstack/react-query';
 
@@ -19,6 +20,7 @@ export default function Auth() {
   const [otp, setOtp] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isWaitingApproval, setIsWaitingApproval] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -42,6 +44,8 @@ export default function Auth() {
           data: isSignUp ? {
             full_name: fullName,
             seller_code: sellerCode || null,
+            terms_accepted: true,
+            terms_accepted_at: new Date().toISOString(),
           } : {},
           shouldCreateUser: isSignUp,
         },
@@ -242,10 +246,42 @@ export default function Auth() {
                   </div>
                 )}
 
+                {/* ToS Checkbox — obrigatório apenas no cadastro */}
+                {isSignUp && (
+                  <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <Checkbox
+                      id="terms-accept"
+                      checked={termsAccepted}
+                      onCheckedChange={(v) => setTermsAccepted(!!v)}
+                      className="mt-0.5 border-blue-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                    />
+                    <div className="space-y-1">
+                      <label
+                        htmlFor="terms-accept"
+                        className="text-xs font-bold text-slate-700 leading-relaxed cursor-pointer"
+                      >
+                        Li e concordo com os{' '}
+                        <button
+                          type="button"
+                          onClick={() => window.open('/terms.html', '_blank')}
+                          className="text-blue-600 underline underline-offset-2 hover:text-blue-700 font-black inline-flex items-center gap-1"
+                        >
+                          Termos de Serviço
+                          <FileText className="h-3 w-3" />
+                        </button>{' '}
+                        e assumo total responsabilidade pelo uso das informações.
+                      </label>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Obrigatório para criar conta
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   type="submit"
-                  className="w-full h-14 font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
-                  disabled={isLoading}
+                  className="w-full h-14 font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoading || (isSignUp && !termsAccepted)}
                 >
                   {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : isSignUp ? 'Solicitar Acesso' : 'Receber Código'}
                 </Button>

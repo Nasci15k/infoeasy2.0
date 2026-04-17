@@ -63,6 +63,7 @@ serve(async (req) => {
     if (!profile) {
       const fullName = (user.user_metadata as any)?.full_name ?? null;
       const sellerCode = (user.user_metadata as any)?.seller_code ?? null;
+      const termsAcceptedAt = (user.user_metadata as any)?.terms_accepted_at ?? null;
 
       const { data: insertedProfile, error: insertProfileError } = await serviceClient
         .from('profiles')
@@ -71,10 +72,11 @@ serve(async (req) => {
           email: user.email!,
           full_name: fullName,
           seller_code: sellerCode,
-          status: 'pending',   // Must be approved by admin before accessing the platform
+          status: 'pending',
           role: 'usuario',
           balance: 0,
           plan_type: 'free',
+          terms_accepted_at: termsAcceptedAt,
         })
         .select('*')
         .single();

@@ -48,27 +48,38 @@ serve(async (req) => {
     console.log('C7 Webhook received:', payload.event);
 
     if (payload.event === 'payment.confirmed') {
-      const externalId = payload.data.correlationID;
+      // Support both field names used by different C7 API versions
+      const externalId = payload.data.externalId || payload.data.correlationID;
       const paidAmount = parseFloat(payload.data.amount || 0);
 
       if (!externalId) {
+        console.warn('No externalId/correlationID in payload');
         return new Response('OK', { status: 200 });
       }
 
-      // Format: USER_UUID_orderType_itemId_timestamp
-      // e.g.: "550e8400-e29b-41d4-a716-446655440000_plan_abc-plan-uuid_1713289200000"
-      const parts = externalId.split('_');
-      if (parts.length < 3) {
-        console.warn('Unexpected externalId format:', externalId);
+      // Format: {UUID-36chars}_{orderType}_{itemId}_{timestamp}
+      // UUID is ALWAYS exactly 36 characters: 8-4-4-4-12 with hyphens
+      // We cannot split by '_' alone because itemId might also be a UUID with hyphens
+      if (externalId.length < 38) {
+        console.warn('externalId too short to be valid:', externalId);
         return new Response('OK', { status: 200 });
       }
 
-      // UUID has 5 parts separated by hyphens, so we need to reconstruct
-      // Format: `${userId}_${orderType}_${itemId}_${timestamp}`
-      // userId is a full UUID (36 chars), so let's parse by position
-      const userId = parts[0]; // full UUID
-      const orderType = parts[1]; // plan | wallet | database
-      const itemId = parts[2]; // planId UUID or 'wallet'
+      const userId = externalId.substring(0, 36); // always 36 chars for UUID
+      const afterUser = externalId.substring(37); // skip the '_' separator
+
+      // orderType is the next segment before the first '_'
+      const typeEnd = afterUser.indexOf('_');
+      if (typeEnd === -1) {
+        console.warn('Could not find orderType in externalId:', externalId);
+        return new Response('OK', { status: 200 });
+      }
+      const orderType = afterUser.substring(0, typeEnd); // 'plan' | 'wallet' | 'database'
+      const afterType = afterUser.substring(typeEnd + 1); // "{itemId}_{timestamp}"
+
+      // timestamp is the last numeric segment; itemId is everything before it
+      const lastUnderscore = afterType.lastIndexOf('_');
+      const itemId = lastUnderscore !== -1 ? afterType.substring(0, lastUnderscore) : afterType;
 
       console.log(`Processing: userId=${userId}, type=${orderType}, item=${itemId}`);
 

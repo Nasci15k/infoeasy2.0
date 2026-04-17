@@ -9,14 +9,15 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { 
   Clock, History, Shield, BarChart3, Search, Database, Zap, Wallet, 
-  Activity, ArrowUpRight, TrendingUp, Users, Layout, Filter, X 
+  Activity, ArrowUpRight, TrendingUp, Users, Layout, Filter, X, Package
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiStatusTab } from '@/components/dashboard/ApiStatusTab';
 import { WalletTab } from '@/components/dashboard/WalletTab';
 import { PlansTab } from '@/components/dashboard/PlansTab';
-import { DatabasesTab } from '@/components/dashboard/DatabasesTab';
+import { ProductsTab } from '@/components/dashboard/ProductsTab';
+import { TermsReminderModal } from '@/components/TermsReminderModal';
 
 export default function Dashboard() {
   const { profile } = useAuth();
@@ -113,10 +114,10 @@ export default function Dashboard() {
 
         {/* Navigation Tabs */}
         <Tabs defaultValue="consultas" className="space-y-12">
-          <TabsList className="bg-white/80 backdrop-blur-md p-2 rounded-[2.5rem] h-auto flex gap-2 w-fit border border-slate-200 shadow-xl mx-auto lg:mx-0">
+          <TabsList className="bg-white/80 backdrop-blur-md p-2 rounded-[2.5rem] h-auto flex flex-wrap gap-2 w-fit border border-slate-200 shadow-xl mx-auto lg:mx-0">
             {[
               { value: 'consultas', label: 'Motores', icon: Search },
-              { value: 'databases', label: 'Bancos', icon: Database },
+              { value: 'produtos', label: 'Produtos', icon: Package },
               { value: 'planos', label: 'Planos', icon: Zap },
               { value: 'carteira', label: 'Carteira', icon: Wallet },
               { value: 'histórico', label: 'Histórico', icon: History, action: () => navigate('/history') },
@@ -183,8 +184,8 @@ export default function Dashboard() {
              </div>
           </TabsContent>
 
-          <TabsContent value="databases" className="animate-in fade-in slide-in-from-bottom-6 duration-700">
-             <DatabasesTab />
+          <TabsContent value="produtos" className="animate-in fade-in slide-in-from-bottom-6 duration-700">
+             <ProductsTab />
           </TabsContent>
           <TabsContent value="planos" className="animate-in fade-in slide-in-from-bottom-6 duration-700">
              <PlansTab />
@@ -197,6 +198,9 @@ export default function Dashboard() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Terms reminder modal — shown on first access */}
+      <TermsReminderModal />
     </div>
   );
 }

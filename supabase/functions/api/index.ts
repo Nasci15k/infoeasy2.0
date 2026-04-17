@@ -129,18 +129,35 @@ serve(async (req) => {
        }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
-    const providerModulo = apiMeta.endpoint.includes(':') ? apiMeta.endpoint.split(':')[1] : apiMeta.endpoint;
-
     // Get Target API details
     const { data: settings } = await serviceClient.from('bot_settings').select('key, value');
     const cfg: Record<string, string> = {};
     settings?.forEach((s: any) => { cfg[s.key] = s.value; });
 
-    const API_TOKEN = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
-    const API_BASE_URL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
-
     const encodedValue = encodeURIComponent(valor);
-    const targetUrl = `${API_BASE_URL}?token=${API_TOKEN}&modulo=${providerModulo}&valor=${encodedValue}`;
+    let targetUrl = '';
+    
+    if (apiMeta.endpoint.startsWith('panel:')) {
+      const modulo = apiMeta.endpoint.split(':')[1];
+      const API_TOKEN = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
+      const API_BASE_URL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
+      targetUrl = `${API_BASE_URL}?token=${API_TOKEN}&modulo=${modulo}&valor=${encodedValue}`;
+    } else if (apiMeta.endpoint.startsWith('tconect:')) {
+      const path = apiMeta.endpoint.split(':')[1];
+      const tconectToken = cfg['tconect_api_token'] || "PNSAPIS";
+      const tconectBase = cfg['tconect_api_url'] || "http://node.tconect.xyz:1116";
+      
+      targetUrl = `${tconectBase}${path.startsWith('/') ? '' : '/'}${path}`;
+      if (targetUrl.includes('?')) {
+        targetUrl = targetUrl.replace('apikey=SeuToken', `apikey=${tconectToken}`).replace('apikey=SUAKEY', `apikey=${tconectToken}`);
+        if (!targetUrl.includes('apikey=')) targetUrl += `&apikey=${tconectToken}`;
+      } else {
+        targetUrl += `?apikey=${tconectToken}`;
+      }
+      targetUrl = targetUrl.replace('{valor}', encodedValue);
+    } else {
+      targetUrl = apiMeta.endpoint.replace('{valor}', encodedValue);
+    }
 
     // Execute Request
     const response = await fetch(targetUrl, {
@@ -169,6 +186,7 @@ serve(async (req) => {
             .replace(/duality/gi, 'InfoEasy')
             .replace(/brasilpro/gi, 'InfoEasy')
             .replace(/astra/gi, 'InfoEasy')
+            .replace(/tconect/gi, 'InfoEasy')
             .replace(/pode conter erros/gi, 'Dados verificados')
             .replace(/consulta realizada com sucesso/gi, 'Busca concluída');
         }

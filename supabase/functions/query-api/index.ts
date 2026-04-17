@@ -247,11 +247,19 @@ serve(async (req) => {
         const k = key.toLowerCase();
         if (errorKeys.includes(k)) {
           const val = responseData[key];
-          if (k === 'status' && (val === false || String(val) === '0' || String(val).toLowerCase() === 'error')) {
+          if (k === 'status' && (
+            val === false || val === 0 || String(val) === '0' ||
+            ['false', 'error', 'fail', 'failed', 'erro', 'falha'].includes(String(val).toLowerCase())
+          )) {
             isError = true;
           } else if (k !== 'status' && val && String(val).length > 2) {
-            // Se tiver uma mensagem de erro explícita
-            if (String(val).toLowerCase().includes('erro') || String(val).toLowerCase().includes('falha') || String(val).toLowerCase().includes('não encontrado')) {
+            if (
+              String(val).toLowerCase().includes('erro') ||
+              String(val).toLowerCase().includes('falha') ||
+              String(val).toLowerCase().includes('não encontrado') ||
+              String(val).toLowerCase().includes('not found') ||
+              String(val).toLowerCase().includes('invalid')
+            ) {
               isError = true;
               errorMsg = String(val);
             }
@@ -287,8 +295,15 @@ serve(async (req) => {
         'apikey', 'auth', 'senha', 'password', 'protocolo', 'usuario', 'conta'
       ];
 
+      const PROVIDER_NAMES = [
+        /iseek/gi, /duality/gi, /brasilpro/gi, /astra/gi,
+        /tconect/gi, /panel\.api/gi, /node\.tc/gi
+      ];
+
       if (typeof obj === 'string') {
-        return obj.replace(/astra/gi, '[FILTRADO]');
+        let cleaned = obj;
+        PROVIDER_NAMES.forEach(re => { cleaned = cleaned.replace(re, 'InfoEasy'); });
+        return cleaned;
       }
       
       if (Array.isArray(obj)) {
@@ -309,7 +324,20 @@ serve(async (req) => {
       return obj;
     };
 
-    const cleanData = sanitizeData(responseData);
+    // Desembrulhar campos wrapper comuns (TConect, panel, etc.)
+    // TConect tipicamente retorna: { status: true, data: { ...dados reais... } }
+    const unwrapped = 
+      (responseData.data !== undefined && responseData.data !== null && typeof responseData.data === 'object') 
+        ? responseData.data
+      : (responseData.retorno !== undefined && responseData.retorno !== null && typeof responseData.retorno === 'object')
+        ? responseData.retorno
+      : (responseData.resultado !== undefined && responseData.resultado !== null && typeof responseData.resultado === 'object')
+        ? responseData.resultado
+      : (responseData.response !== undefined && responseData.response !== null && typeof responseData.response === 'object')
+        ? responseData.response
+      : responseData;
+
+    const cleanData = sanitizeData(unwrapped);
 
     // Persistência no Histórico (Usa service role para garantir a gravação independente de RLS)
     try {

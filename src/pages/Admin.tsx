@@ -17,7 +17,7 @@ import { AdminStats } from '@/components/admin/AdminStats';
 import { ApprovalDialog } from '@/components/admin/ApprovalDialog';
 import { SellersTab } from '@/components/admin/SellersTab';
 import { ApiTokensTab } from '@/components/admin/ApiTokensTab';
-import { DatabasesTab } from '@/components/admin/DatabasesTab';
+import { AdminProductsTab } from '@/components/admin/AdminProductsTab';
 import { ApiPlansTab } from '@/components/admin/ApiPlansTab';
 import { useUserRole } from '@/hooks/useUserRole';
 
@@ -244,7 +244,7 @@ export default function Admin() {
               { value: 'stats', label: 'Dashboard', icon: LayoutDashboard },
               { value: 'pending', label: `Pendentes (${pendingUsers.length})`, icon: UserCheck },
               { value: 'approved', label: 'Usuários', icon: Users },
-              { value: 'databases', label: 'Bases de Dados', icon: Database },
+              { value: 'products', label: 'Produtos', icon: Database },
               { value: 'plans', label: 'Planos Consultas', icon: Sparkles },
               { value: 'bots', label: 'Configuração Bots', icon: Bot },
               { value: 'proxy', label: 'Gestão APIs', icon: Terminal },
@@ -338,8 +338,8 @@ export default function Admin() {
              </Card>
           </TabsContent>
 
-          <TabsContent value="databases" className="animate-in slide-in-from-bottom-8 duration-700">
-             <DatabasesTab />
+          <TabsContent value="products" className="animate-in slide-in-from-bottom-8 duration-700">
+             <AdminProductsTab />
           </TabsContent>
 
           <TabsContent value="plans" className="animate-in slide-in-from-bottom-8 duration-700">

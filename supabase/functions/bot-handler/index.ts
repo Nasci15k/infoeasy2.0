@@ -230,7 +230,17 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
       throw new Error('A resposta do provedor é inválida ou vazia.');
     }
 
-    // Checar se o provedor retornou erro no JSON
+    // Desembrulhar campos wrapper comuns (TConect retorna { status, data: {... dados reais ...} })
+    const unwrapped =
+      (responseData.data !== undefined && responseData.data !== null && typeof responseData.data === 'object')
+        ? responseData.data
+      : (responseData.retorno !== undefined && typeof responseData.retorno === 'object')
+        ? responseData.retorno
+      : (responseData.resultado !== undefined && typeof responseData.resultado === 'object')
+        ? responseData.resultado
+      : responseData;
+
+    // Checar se o provedor retornou erro no JSON (usando responseData original para pegar campos de status)
     const errorKeys = ['erro', 'error', 'msg', 'mensagem', 'message', 'status'];
     let isError = false;
     let errorMsg = 'Nenhum registro encontrado.';
@@ -239,10 +249,12 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
       const k = key.toLowerCase();
       if (errorKeys.includes(k)) {
         const val = responseData[key];
-        if (k === 'status' && (val === false || String(val) === '0' || String(val).toLowerCase() === 'error')) {
+        if (k === 'status' && (val === false || val === 0 || String(val) === '0' ||
+            ['false', 'error', 'fail', 'failed', 'erro', 'falha'].includes(String(val).toLowerCase()))) {
           isError = true;
         } else if (k !== 'status' && val && String(val).length > 2) {
-          if (String(val).toLowerCase().includes('erro') || String(val).toLowerCase().includes('falha') || String(val).toLowerCase().includes('não encontrado')) {
+          if (String(val).toLowerCase().includes('erro') || String(val).toLowerCase().includes('falha') ||
+              String(val).toLowerCase().includes('não encontrado') || String(val).toLowerCase().includes('not found')) {
             isError = true;
             errorMsg = String(val);
           }
@@ -255,7 +267,7 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
       return { success: false, message: String(errorMsg) };
     }
 
-    return { success: true, data: responseData, apiName: api.name };
+    return { success: true, data: unwrapped, apiName: api.name };
 
   } catch (e: any) {
     return { success: false, message: e.name === 'AbortError' ? 'Tempo esgotado (O provedor demorou mais de 60s)' : e.message };
@@ -435,80 +447,32 @@ async function buildForceJoinMessage() {
 // ──────────────────────────────────────────────
 // Mapeamento Global de Tipos de Consulta
 // ──────────────────────────────────────────────
-const QUERY_MAPPING: Record<string, string[]> = {
-  cpf: ['CPF', 'SUS', 'Score', 'Duality', 'ISK', 'Situação'],
-  cnpj: ['CNPJ', 'Empresa', 'Corporativo'],
-  nome: ['Nome', 'Mãe', 'Pai'], // Mae integrada em Nome
-  tel: ['Telefone', 'Tel', 'Celular', 'Linha'],
-  email: ['Email', 'E-mail', 'Gmail', 'Outlook'],
-  placa: ['Placa', 'SESP', 'FIPE', 'Veículo', 'Auto'],
-  cep: ['CEP', 'Logradouro', 'Endereço'],
-  rg: ['RG', 'Identidade'],
-  pis: ['PIS', 'PASEP'],
-  score: ['Score', 'Poder Aquisitivo', 'Renda', 'Financeiro'],
-  parente: ['Parentes', 'Vínculos', 'Família'],
-  endereco: ['Endereço', 'Logradouro', 'Rua'],
-  judicial: ['Processos', 'SIEL', 'Credilink', 'Criminal', 'Mandado'],
-  pix: ['PIX', 'Conta', 'Banco'],
-  ip: ['IP', 'Internet', 'Rede'],
-  mac: ['MAC', 'Dispositivo'],
-  bin: ['BIN', 'Cartão'],
-  fotos: ['Foto', 'Imagem', 'Avatar']
-};
-
-async function buildCategoryMenu() {
-  const types = [
-    { label: '👤 CPF', type: 'cpf' },
-    { label: '🏢 CNPJ', type: 'cnpj' },
-    { label: '👤 NOME', type: 'nome' },
-    { label: '📞 TEL', type: 'tel' },
-    { label: '📧 EMAIL', type: 'email' },
-    { label: '🚗 PLACA', type: 'placa' },
-    { label: '📍 CEP', type: 'cep' },
-    { label: '🪪 RG', type: 'rg' },
-    { label: '📋 PIS', type: 'pis' },
-    { label: '💰 SCORE', type: 'score' },
-    { label: '👥 PARENTE', type: 'parente' },
-    { label: '📍 ENDEREÇO', type: 'endereco' },
-    { label: '⚖️ JUDICIAL', type: 'judicial' },
-    { label: '💸 PIX', type: 'pix' },
-    { label: '🌐 IP', type: 'ip' },
-    { label: '🖥️ MAC', type: 'mac' },
-    { label: '💳 BIN', type: 'bin' },
-    { label: '📸 FOTOS', type: 'fotos' }
-  ];
-
+async function buildCategoryMenu(supabase: ReturnType<typeof createClient>) {
+  const { data: types } = await supabase.from('api_categories').select('name, slug, icon').order('name');
   const buttons: any[] = [];
-  for (let i = 0; i < types.length; i += 2) {
+  const list = types || [];
+  
+  for (let i = 0; i < list.length; i += 2) {
     const row = [
-      { text: types[i].label, callback_data: `cat:${types[i].type}` }
+      { text: `${list[i].icon || '📁'} ${list[i].name.toUpperCase()}`, callback_data: `cat:${list[i].slug}` }
     ];
-    if (types[i + 1]) {
-      row.push({ text: types[i + 1].label, callback_data: `cat:${types[i + 1].type}` });
+    if (list[i + 1]) {
+      row.push({ text: `${list[i+1].icon || '📁'} ${list[i + 1].name.toUpperCase()}`, callback_data: `cat:${list[i + 1].slug}` });
     }
     buttons.push(row);
   }
   buttons.push([{ text: '↩️ Voltar', callback_data: 'menu:main' }]);
 
-  const text = `🪪 <b>Selecione o tipo de consulta:</b>\n<i>Toque em uma opção para ver o exemplo de uso.</i>`;
+  const text = `🪪 <b>Selecione o tipo de consulta:</b>\n<i>Toque em uma opção para ver o detalhamento.</i>`;
   return { text, keyboard: buttons };
 }
 
 async function buildInstructionPage(type: string) {
-  const examples: Record<string, string> = {
-    cpf: '000.000.000-00', cnpj: '00.000.000/0001-00', nome: 'JOAO SILVA',
-    tel: '11999999999', email: 'exemplo@gmail.com', placa: 'ABC1234',
-    cep: '01001-000', rg: '12.345.678-9', pis: '123.45678.90-1',
-    score: '000.000.000-00', parente: '000.000.000-00', endereco: 'Rua Exemplo, 123',
-    judicial: '0000000-00.0000.0.00.0000', pix: '000.000.000-00',
-    ip: '127.0.0.1', mac: 'AA:BB:CC:DD:EE:FF', bin: '123456',
-    fotos: '000.000.000-00'
-  };
-  const example = examples[type] || 'VALOR';
   const text =
     `⚠️ <b>${type.toUpperCase()}</b>\n\n` +
-    `Por favor, utilize o formato correto:\n` +
-    `<code>/${type} ${example}</code>`;
+    `Por favor, utilize o formato correto informando o dado para consultar:\n` +
+    `<code>/${type} [VALOR]</code>\n\n` +
+    `Exemplo numérico:\n<code>/${type} 123456789</code>`;
 
   const keyboard = [[{ text: '↩️ Voltar', callback_data: 'menu:consultas' }]];
   return { text, keyboard };
@@ -519,19 +483,19 @@ async function buildApiMenu(
   queryValue: string,
   supabase: ReturnType<typeof createClient>
 ) {
-  const keywords = QUERY_MAPPING[type] || [type];
-
-  // Construir query OR complexa
-  let query = supabase.from('apis').select('*').eq('is_active', true);
-
-  // Filtragem local para simplicidade ou via RPC se ficar complexo
-  const { data: allApis } = await query;
-
-  const filtered = allApis?.filter(api => {
-    const name = api.name.toLowerCase();
-    const desc = (api.description || '').toLowerCase();
-    return keywords.some(k => name.includes(k.toLowerCase()) || desc.includes(k.toLowerCase()));
-  }) || [];
+  // Carrega APIs ligadas a esta categoria.
+  const { data: cat } = await supabase.from('api_categories').select('id, name, slug').eq('slug', type).single();
+  const { data: allApis } = await supabase.from('apis').select('*').eq('is_active', true);
+  
+  let filtered = [];
+  if (cat) {
+    filtered = (allApis || []).filter(a => a.category_id === cat.id);
+  } else {
+    filtered = (allApis || []).filter(a => 
+      (a.slug || '').toLowerCase() === type || 
+      (a.group_name || '').toLowerCase() === type.toLowerCase()
+    );
+  }
 
   if (!filtered.length) {
     return { text: `Nenhum módulo ativo para <b>${type.toUpperCase()}</b>.`, keyboard: [[{ text: '↩️ Voltar', callback_data: 'menu:consultas' }]] };
@@ -622,7 +586,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
     }
 
     if (data === 'menu:consultas') {
-      const { text, keyboard } = await buildCategoryMenu();
+      const { text, keyboard } = await buildCategoryMenu(supabase);
       await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
       return;
     }
@@ -733,7 +697,17 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   if (genericMatch) {
     const slug = genericMatch[1].toLowerCase();
     const val = (genericMatch[2] || '').trim();
-    if (QUERY_MAPPING[slug]) {
+    
+    const { data: cat } = await supabase.from('api_categories').select('id').eq('slug', slug).single();
+    const { data: apis } = await supabase.from('apis').select('id').eq('is_active', true);
+    
+    // Check if it exists in categories or if it matches any api's slug or group_name
+    const isApiExists = (apis || []).some((a: any) => 
+      (a.slug || '').toLowerCase() === slug || 
+      (a.group_name || '').toLowerCase() === slug
+    );
+
+    if (cat || isApiExists) {
       if (!val) {
         const { text: iText, keyboard: iKb } = await buildInstructionPage(slug);
         await tgSend(tgToken, chatId, iText, { reply_markup: { inline_keyboard: iKb } });

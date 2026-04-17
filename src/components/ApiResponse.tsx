@@ -159,15 +159,17 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (entries.length === 0) return null;
 
     return (
-      <div className={cn("grid gap-4 w-full", depth === 0 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 border-l-2 border-slate-100 ml-2 pl-4 mt-4")}>
+      <div className={cn("grid gap-4 w-full", depth === 0 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3")}>
         {entries.map(([key, value]) => {
-          const isObj = typeof value === 'object' && value !== null;
           const isArr = Array.isArray(value);
+          const isObj = typeof value === 'object' && value !== null && !isArr;
+          
+          const isHeavy = isObj || isArr || String(value).length > 30;
 
           return (
-            <div key={key} className={cn("group/field flex flex-col p-5 rounded-2xl bg-slate-50 border border-slate-100/50 hover:bg-white hover:border-blue-200 transition-all shadow-sm", (isObj || isArr || String(value).length > 25) && "sm:col-span-2")}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatFieldName(key)}</span>
+            <div key={key} className={cn("group/field flex flex-col p-5 rounded-2xl bg-slate-50/50 border border-slate-100 hover:bg-white hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/5 transition-all", isHeavy && "sm:col-span-2 lg:col-span-full bg-white")}>
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100/50">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md">{formatFieldName(key)}</span>
                 {!isObj && !isArr && (
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover/field:opacity-100 hover:bg-blue-50 transition-all" onClick={() => copyToClipboard(String(value), key)}>
                     <Copy className="h-3 w-3 text-blue-600" />
@@ -176,18 +178,20 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
               </div>
               <div className="flex-1 w-full">
                 {!isObj && !isArr ? (
-                  <span className="text-[13px] font-black text-slate-900 break-words leading-tight">{renderValue(value)}</span>
+                  <span className="text-[13px] font-black text-slate-900 break-words leading-tight block pt-1">{renderValue(value)}</span>
                 ) : isArr ? (
-                  <div className="space-y-4 mt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                     {value.map((item: any, i: number) => (
-                      <div key={i} className="p-4 rounded-xl bg-white border border-slate-100 relative">
-                        <Badge variant="outline" className="text-[9px] mb-3 border-slate-200 text-slate-400 font-black uppercase">Item #{i + 1}</Badge>
-                        {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-[13px] font-black text-blue-600">{renderValue(item)}</span>}
+                      <div key={i} className="p-5 rounded-[1.5rem] bg-slate-50 border border-slate-100 relative group/item hover:border-blue-200 transition-colors">
+                        <Badge variant="outline" className="text-[9px] mb-3 border-transparent bg-white shadow-sm text-slate-400 font-black uppercase">Item #{i + 1}</Badge>
+                        {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-[13px] font-black text-blue-600 block">{renderValue(item)}</span>}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  renderRecursive(value, depth + 1)
+                  <div className="pt-2">
+                    {renderRecursive(value, depth + 1)}
+                  </div>
                 )}
               </div>
             </div>

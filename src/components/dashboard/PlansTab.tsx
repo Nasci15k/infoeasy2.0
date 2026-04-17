@@ -49,7 +49,14 @@ export function PlansTab() {
         </div>
         
         <div className="bg-white p-8 rounded-[2rem] mx-auto w-fit shadow-lg border border-slate-100">
-           <img src={pixData.qrCodeBase64} alt="QR Code PIX" className="w-64 h-64" />
+           {(pixData.qrCodeBase64 || pixData.pixQrCode || pixData.qr_code_url) ? (
+             <img src={pixData.qrCodeBase64 || pixData.pixQrCode || pixData.qr_code_url} alt="QR Code PIX" className="w-64 h-64" />
+           ) : (
+             <div className="w-64 h-64 bg-slate-50 rounded-xl flex flex-col items-center justify-center gap-2 border border-slate-100">
+               <p className="text-slate-400 font-bold text-xs uppercase tracking-widest text-center">QR Code em breve</p>
+               <p className="text-[10px] text-slate-300 font-bold uppercase text-center">Use o Copia e Cola abaixo</p>
+             </div>
+           )}
         </div>
 
         <div className="space-y-4">
