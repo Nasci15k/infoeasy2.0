@@ -35,7 +35,7 @@ serve(async (req) => {
     });
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    
+
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Não autorizado ou sessão expirada' }),
@@ -98,7 +98,7 @@ serve(async (req) => {
       // Cobrar saldo usando Service Role para evitar problemas de concorrência ou RLS
       const supabaseServiceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
       const serviceClient = createClient(supabaseUrl!, supabaseServiceRole!);
-      
+
       const { error: chargeError } = await serviceClient
         .from('profiles')
         .update({ balance: Number(profile.balance) - price })
@@ -148,7 +148,7 @@ serve(async (req) => {
     const valueStr = String(queryValue);
     const cleanValue = valueStr.replace(/\D/g, '');
     const encodedValue = encodeURIComponent(valueStr);
-    
+
     if (endpointStore.startsWith('panel:')) {
       const modulo = endpointStore.split(':')[1];
       apiUrl = `${BASE_URL_PANEL}?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
@@ -163,21 +163,21 @@ serve(async (req) => {
       const path = endpointStore.split(':')[1];
       const tconectToken = cfg['tconect_api_token'] || "PNSAPIS";
       const tconectBase = cfg['tconect_api_url'] || "http://node.tconect.xyz:1116";
-      
+
       // Construir a URL baseada no prefixo tconect:
       apiUrl = `${tconectBase}${path.startsWith('/') ? '' : '/'}${path}`;
-      
+
       // Injetar o Token se houver placeholders ou se não estiver presente
       if (apiUrl.includes('?')) {
         apiUrl = apiUrl.replace('apikey=SeuToken', `apikey=${tconectToken}`)
-                       .replace('apikey=SUAKEY', `apikey=${tconectToken}`);
+          .replace('apikey=SUAKEY', `apikey=${tconectToken}`);
         if (!apiUrl.includes('apikey=')) {
           apiUrl += `&apikey=${tconectToken}`;
         }
       } else {
         apiUrl += `?apikey=${tconectToken}`;
       }
-      
+
       // Substituir o valor e outros parâmetros
       apiUrl = apiUrl
         .replace('{valor}', encodedValue)
@@ -189,7 +189,7 @@ serve(async (req) => {
         .replace('{ddd}', valueStr.substring(0, 2))
         .replace('{telefone}', valueStr.substring(2));
     }
-    
+
     console.log(`Processing ${api.name} for ${user.email}`);
 
     let responseData: any = null;
@@ -200,7 +200,7 @@ serve(async (req) => {
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos
 
       const response = await fetch(apiUrl, {
-        headers: { 
+        headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json'
         },
@@ -214,11 +214,11 @@ serve(async (req) => {
       }
 
       const textData = await response.text();
-      
+
       // Checagem de erros SQL/Servidor no retorno do provedor
       const serverErrorKeywords = ['SQLSTATE', 'General error', 'Connection refused', 'PDOException', 'no such table'];
       if (serverErrorKeywords.some(kw => textData.includes(kw))) {
-         throw new Error('A fonte de dados está instável ou em manutenção.');
+        throw new Error('A fonte de dados está instável ou em manutenção.');
       }
 
       // Parser Robusto
@@ -268,21 +268,21 @@ serve(async (req) => {
       }
 
       if (isError || responseData.erro || responseData.error) {
-         errorMsg = responseData.msg || responseData.erro || responseData.error || responseData.mensagem || responseData.message || errorMsg;
-         return new Response(
-           JSON.stringify({ success: false, notFound: true, message: String(errorMsg), api: api.name }),
-           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-         );
+        errorMsg = responseData.msg || responseData.erro || responseData.error || responseData.mensagem || responseData.message || errorMsg;
+        return new Response(
+          JSON.stringify({ success: false, notFound: true, message: String(errorMsg), api: api.name }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
     } catch (fetchError: any) {
       console.error('Fetch error:', fetchError.message);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: true, 
-      message: fetchError.name === 'AbortError' ? 'Tempo esgotado (O provedor demorou mais de 60s)' : fetchError.message, 
-          api: api.name 
+        JSON.stringify({
+          success: false,
+          error: true,
+          message: fetchError.name === 'AbortError' ? 'Tempo esgotado (O provedor demorou mais de 60s)' : fetchError.message,
+          api: api.name
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -291,7 +291,7 @@ serve(async (req) => {
     // Sanitização Profunda (Recursiva)
     const sanitizeData = (obj: any): any => {
       const BLACK_LIST = [
-        'consumo_hoje', 'reset_em', 'total_diario', 'limites', 'token', 
+        'consumo_hoje', 'reset_em', 'total_diario', 'limites', 'token',
         'apikey', 'auth', 'senha', 'password', 'protocolo', 'usuario', 'conta'
       ];
 
@@ -305,11 +305,11 @@ serve(async (req) => {
         PROVIDER_NAMES.forEach(re => { cleaned = cleaned.replace(re, 'InfoEasy'); });
         return cleaned;
       }
-      
+
       if (Array.isArray(obj)) {
         return obj.map(sanitizeData);
       }
-      
+
       if (obj && typeof obj === 'object') {
         const filtered: any = {};
         for (const [key, value] of Object.entries(obj)) {
@@ -326,16 +326,16 @@ serve(async (req) => {
 
     // Desembrulhar campos wrapper comuns (TConect, panel, etc.)
     // TConect tipicamente retorna: { status: true, data: { ...dados reais... } }
-    const unwrapped = 
-      (responseData.data !== undefined && responseData.data !== null && typeof responseData.data === 'object') 
+    const unwrapped =
+      (responseData.data !== undefined && responseData.data !== null && typeof responseData.data === 'object')
         ? responseData.data
-      : (responseData.retorno !== undefined && responseData.retorno !== null && typeof responseData.retorno === 'object')
-        ? responseData.retorno
-      : (responseData.resultado !== undefined && responseData.resultado !== null && typeof responseData.resultado === 'object')
-        ? responseData.resultado
-      : (responseData.response !== undefined && responseData.response !== null && typeof responseData.response === 'object')
-        ? responseData.response
-      : responseData;
+        : (responseData.retorno !== undefined && responseData.retorno !== null && typeof responseData.retorno === 'object')
+          ? responseData.retorno
+          : (responseData.resultado !== undefined && responseData.resultado !== null && typeof responseData.resultado === 'object')
+            ? responseData.resultado
+            : (responseData.response !== undefined && responseData.response !== null && typeof responseData.response === 'object')
+              ? responseData.response
+              : responseData;
 
     const cleanData = sanitizeData(unwrapped);
 
@@ -359,7 +359,7 @@ serve(async (req) => {
     if (limits) {
       await supabaseClient
         .from('user_limits')
-        .update({ 
+        .update({
           daily_count: Number(limits.daily_count) + 1,
           monthly_count: Number(limits.monthly_count) + 1
         })
@@ -374,14 +374,14 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('CRITICAL ERROR:', error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
-        error: true, 
-        message: error instanceof Error ? error.message : 'Erro interno do servidor' 
+        error: true,
+        message: error instanceof Error ? error.message : 'Erro interno do servidor'
       }),
-      { 
+      {
         status: 200, // Retornamos 200 para o painel não travar, mas com flag success: false
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }

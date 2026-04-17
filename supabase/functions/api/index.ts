@@ -18,7 +18,7 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Configuração do servidor incompleta.');
     }
-    
+
     // Parse URL param
     const url = new URL(req.url);
     const token = url.searchParams.get('token');
@@ -27,7 +27,7 @@ serve(async (req) => {
     const shouldRender = url.searchParams.get('render') === 'true';
 
     if (!token) {
-       return new Response(JSON.stringify({ error: 'Falta o parâmetro [token]' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+      return new Response(JSON.stringify({ error: 'Falta o parâmetro [token]' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
@@ -40,7 +40,7 @@ serve(async (req) => {
       .single();
 
     if (tokenError || !apiToken || !apiToken.is_active) {
-       return new Response(JSON.stringify({ error: 'Token inválido ou inativo.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+      return new Response(JSON.stringify({ error: 'Token inválido ou inativo.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // DOCUMENTATION MODE: If token exists but no modulo/valor, show full module list
@@ -75,15 +75,15 @@ serve(async (req) => {
     // granular permission check
     const allowedApis = apiToken.allowed_apis || [];
     if (!allowedApis.includes('*') && !allowedApis.includes(modulo)) {
-       return new Response(JSON.stringify({ 
-         error: 'Seu token não possui permissão para este módulo.', 
-         requested_module: modulo,
-         help: 'Contate o suporte para liberar acesso a este endpoint.'
-       }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+      return new Response(JSON.stringify({
+        error: 'Seu token não possui permissão para este módulo.',
+        requested_module: modulo,
+        help: 'Contate o suporte para liberar acesso a este endpoint.'
+      }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (apiToken.requests_made >= apiToken.daily_limit) {
-       return new Response(JSON.stringify({ error: 'Limite diário da API excedido.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+      return new Response(JSON.stringify({ error: 'Limite diário da API excedido.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Resolve slug to real endpoint — try exact slug first, then endpoint contains
@@ -114,19 +114,19 @@ serve(async (req) => {
     }
 
     if (!apiMeta) {
-       // Build helpful list of valid module slugs
-       const { data: validModules } = await serviceClient
-         .from('apis')
-         .select('slug, name')
-         .not('slug', 'is', null)
-         .limit(20);
+      // Build helpful list of valid module slugs
+      const { data: validModules } = await serviceClient
+        .from('apis')
+        .select('slug, name')
+        .not('slug', 'is', null)
+        .limit(20);
 
-       const examples = validModules?.slice(0, 5).map((m: any) => m.slug).join(', ') || '';
-       return new Response(JSON.stringify({ 
-         error: `O módulo [${modulo}] não existe ou foi renomeado.`,
-         hint: `Exemplos de módulos válidos: ${examples}`,
-         docs: 'Acesse /api?token=SEU_TOKEN para ver todos os módulos disponíveis no seu plano.'
-       }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+      const examples = validModules?.slice(0, 5).map((m: any) => m.slug).join(', ') || '';
+      return new Response(JSON.stringify({
+        error: `O módulo [${modulo}] não existe ou foi renomeado.`,
+        hint: `Exemplos de módulos válidos: ${examples}`,
+        docs: 'Acesse /api?token=SEU_TOKEN para ver todos os módulos disponíveis no seu plano.'
+      }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Get Target API details
@@ -136,7 +136,7 @@ serve(async (req) => {
 
     const encodedValue = encodeURIComponent(valor);
     let targetUrl = '';
-    
+
     if (apiMeta.endpoint.startsWith('panel:')) {
       const modulo = apiMeta.endpoint.split(':')[1];
       const API_TOKEN = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
@@ -146,7 +146,7 @@ serve(async (req) => {
       const path = apiMeta.endpoint.split(':')[1];
       const tconectToken = cfg['tconect_api_token'] || "PNSAPIS";
       const tconectBase = cfg['tconect_api_url'] || "http://node.tconect.xyz:1116";
-      
+
       targetUrl = `${tconectBase}${path.startsWith('/') ? '' : '/'}${path}`;
       if (targetUrl.includes('?')) {
         targetUrl = targetUrl.replace('apikey=SeuToken', `apikey=${tconectToken}`).replace('apikey=SUAKEY', `apikey=${tconectToken}`);
@@ -165,7 +165,7 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-       throw new Error(`Upstream Error: ${response.status}`);
+      throw new Error(`Upstream Error: ${response.status}`);
     }
 
     const respData = await response.text();
@@ -174,7 +174,7 @@ serve(async (req) => {
     try {
       jsonResp = JSON.parse(respData);
     } catch {
-       jsonResp = { raw: respData };
+      jsonResp = { raw: respData };
     }
 
     // SANITIZATION & PHOTO RENDERING
@@ -199,12 +199,12 @@ serve(async (req) => {
 
       const cleaned: any = {};
       const forbiddenKeys = [
-        'server_time', 'execution_ms', 'provider', 'provider_info', 
-        'source_db', 'raw_response', 'token_info', 'api_info', 
-        'requests_remaining', 'owner', 'reset_interval_minutes', 
+        'server_time', 'execution_ms', 'provider', 'provider_info',
+        'source_db', 'raw_response', 'token_info', 'api_info',
+        'requests_remaining', 'owner', 'reset_interval_minutes',
         'minutes_until_reset', 'used_in_period'
       ];
-      
+
       for (const key in obj) {
         if (forbiddenKeys.includes(key.toLowerCase())) continue;
         const cleanKey = key.replace(/iseek/gi, '').replace(/provider/gi, 'source');
@@ -221,7 +221,7 @@ serve(async (req) => {
       if (typeof obj.base64 === 'string') return obj.base64;
       if (typeof obj.foto === 'string') return obj.foto;
       if (typeof obj.imagem === 'string') return obj.imagem;
-      
+
       for (const key in obj) {
         const result = findBase64(obj[key]);
         if (result) return result;
@@ -232,17 +232,17 @@ serve(async (req) => {
     // PHOTO RENDERING LOGIC: If ?render=true and it's a photo slug
     if (shouldRender && modulo.startsWith('foto')) {
       const base64Data = findBase64(sanitizedResp);
-      
+
       if (base64Data) {
         const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-        
+
         try {
           const binaryString = atob(pureBase64);
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
           }
-          
+
           return new Response(bytes, {
             headers: {
               ...corsHeaders,
@@ -258,8 +258,8 @@ serve(async (req) => {
 
     // Update Token Usage & Log
     await serviceClient.from('api_tokens').update({ requests_made: Number(apiToken.requests_made) + 1 }).eq('id', apiToken.id);
-    await serviceClient.from('api_logs').insert({ 
-      token_id: apiToken.id, 
+    await serviceClient.from('api_logs').insert({
+      token_id: apiToken.id,
       endpoint: modulo,
       query: valor,
       status_code: response.status
@@ -280,6 +280,6 @@ serve(async (req) => {
     return new Response(JSON.stringify(finalResponse), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });

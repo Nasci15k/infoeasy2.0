@@ -80,8 +80,10 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (v === null || v === undefined) return false;
     if (typeof v === 'string') {
       const low = v.toLowerCase().trim();
-      return !(low === '' || low === 'undefined' || low === 'null');
+      return !(low === '' || low === 'undefined' || low === 'null' || low === 'nan');
     }
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'object') return Object.keys(v).length > 0;
     return true;
   };
 
@@ -138,12 +140,44 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
 
   const catData = useMemo(() => {
     if (!displayData) return [];
+    
+    // Deep cleaner to hide empty nesting and default missing values
+    const cleanEmptyDeep = (obj: any): any => {
+      if (obj === null || obj === undefined) return null;
+      if (typeof obj === 'string') {
+        const low = obj.toLowerCase().trim();
+        if (['', 'undefined', 'null', 'nan', 'não informado', 'nao informado', 'não consta', 'sem registro'].includes(low)) return null;
+        return obj;
+      }
+      if (Array.isArray(obj)) {
+        const arr = obj.map(cleanEmptyDeep).filter(v => v !== null && v !== undefined && (typeof v !== 'object' || Object.keys(v).length > 0));
+        return arr.length > 0 ? arr : null;
+      }
+      if (typeof obj === 'object') {
+        const newObj: any = {};
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === '_images') { newObj[k] = v; continue; }
+          const cv = cleanEmptyDeep(v);
+          if (cv !== null && cv !== undefined) {
+             if (typeof cv === 'object' && Object.keys(cv).length === 0) continue;
+             if (Array.isArray(cv) && cv.length === 0) continue;
+             newObj[k] = cv;
+          }
+        }
+        return Object.keys(newObj).length > 0 ? newObj : null;
+      }
+      return obj;
+    };
+
     const categories: Record<string, { label: string; icon: any; color: string; data: any }> = {};
     const images = findImagesWithContext(displayData);
     if (images.length > 0) {
       categories['GALERIA DE FOTOS'] = { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5" />, color: 'text-blue-600', data: { _images: images } };
     }
-    Object.entries(displayData).forEach(([key, value]) => {
+    
+    const cleanedData = cleanEmptyDeep(displayData) || {};
+
+    Object.entries(cleanedData).forEach(([key, value]) => {
       if (key === '_metadata' || key === 'raw' || isBase64Image(value)) return;
       const theme = getCategoryTheme(key);
       const label = theme.label;
@@ -158,45 +192,64 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     const entries = Object.entries(obj).filter(([k, v]) => k !== '_images' && !isBase64Image(v));
     if (entries.length === 0) return null;
 
-    return (
-      <div className={cn("grid gap-4 w-full", depth === 0 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3")}>
-        {entries.map(([key, value]) => {
-          const isArr = Array.isArray(value);
-          const isObj = typeof value === 'object' && value !== null && !isArr;
-          
-          const isHeavy = isObj || isArr || String(value).length > 30;
+    const scalars = entries.filter(([, v]) => typeof v !== 'object' || v === null);
+    const complexes = entries.filter(([, v]) => typeof v === 'object' && v !== null);
 
-          return (
-            <div key={key} className={cn("group/field flex flex-col p-5 rounded-2xl bg-slate-50/50 border border-slate-100 hover:bg-white hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/5 transition-all", isHeavy && "sm:col-span-2 lg:col-span-full bg-white")}>
-              <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100/50">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md">{formatFieldName(key)}</span>
-                {!isObj && !isArr && (
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover/field:opacity-100 hover:bg-blue-50 transition-all" onClick={() => copyToClipboard(String(value), key)}>
+    return (
+      <div className="space-y-6 w-full">
+        {scalars.length > 0 && (
+          <div className={cn(
+            "grid gap-x-8 gap-y-2", 
+            depth === 0 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+          )}>
+            {scalars.map(([key, value]) => (
+              <div key={key} className="flex flex-col py-3 border-b border-slate-100 group/field">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-400 flex items-center uppercase tracking-widest flex-1">
+                    {formatFieldName(key)}
+                  </span>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover/field:opacity-100 hover:bg-blue-50 transition-all rounded flex-shrink-0" onClick={() => copyToClipboard(String(value), key)}>
                     <Copy className="h-3 w-3 text-blue-600" />
                   </Button>
-                )}
+                </div>
+                <span className={cn("font-black text-slate-800 break-words leading-tight mt-1", depth === 0 ? "text-sm" : "text-xs")}>
+                  {renderValue(value)}
+                </span>
               </div>
-              <div className="flex-1 w-full">
-                {!isObj && !isArr ? (
-                  <span className="text-[13px] font-black text-slate-900 break-words leading-tight block pt-1">{renderValue(value)}</span>
-                ) : isArr ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                    {value.map((item: any, i: number) => (
-                      <div key={i} className="p-5 rounded-[1.5rem] bg-slate-50 border border-slate-100 relative group/item hover:border-blue-200 transition-colors">
-                        <Badge variant="outline" className="text-[9px] mb-3 border-transparent bg-white shadow-sm text-slate-400 font-black uppercase">Item #{i + 1}</Badge>
-                        {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-[13px] font-black text-blue-600 block">{renderValue(item)}</span>}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="pt-2">
-                    {renderRecursive(value, depth + 1)}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        )}
+
+        {complexes.length > 0 && (
+          <div className="space-y-6 mt-4">
+            {complexes.map(([key, value]) => {
+              const isArr = Array.isArray(value);
+              return (
+                <div key={key} className="p-6 rounded-3xl bg-slate-50/70 border border-slate-200">
+                  <h4 className="text-[11px] font-black text-slate-800 mb-5 uppercase tracking-widest flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-blue-600" />
+                    {formatFieldName(key)}
+                  </h4>
+                  
+                  {isArr ? (
+                    <div className={cn("grid gap-4", value.length > 1 ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1")}>
+                      {value.map((item: any, i: number) => (
+                        <div key={i} className="p-5 bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] w-full overflow-hidden">
+                          <Badge variant="outline" className="text-[9px] mb-4 text-slate-400 font-black uppercase bg-slate-50 border-slate-200">Registro #{i + 1}</Badge>
+                          {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-sm font-black text-slate-700 block">{renderValue(item)}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] w-full overflow-hidden">
+                      {renderRecursive(value, depth + 1)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };

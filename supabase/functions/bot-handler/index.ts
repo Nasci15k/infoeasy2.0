@@ -174,18 +174,20 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
     const modulo = endpointStore.split(':')[1];
     apiUrl = `${BASE_URL_PANEL}?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
   } else if (endpointStore.startsWith('tconect:')) {
-    const path = endpointStore.split(':')[1];
+    let path = endpointStore.substring(8);
     const tconectToken = cfg['tconect_api_token'] || "PNSAPIS";
     const tconectBase = cfg['tconect_api_url'] || "http://node.tconect.xyz:1116";
-    
+
     apiUrl = `${tconectBase}${path.startsWith('/') ? '' : '/'}${path}`;
-    if (apiUrl.includes('?')) {
-      apiUrl = apiUrl.replace('apikey=SeuToken', `apikey=${tconectToken}`).replace('apikey=SUAKEY', `apikey=${tconectToken}`);
-      if (!apiUrl.includes('apikey=')) apiUrl += `&apikey=${tconectToken}`;
+    apiUrl = apiUrl.replace('apikey=SeuToken', `apikey=${tconectToken}`).replace('apikey=SUAKEY', `apikey=${tconectToken}`);
+    
+    if (!apiUrl.includes('{valor}')) {
+      if (apiUrl.includes('apikey=')) apiUrl += `=${encodedValue}`;
+      else apiUrl += `${apiUrl.includes('?') ? '&' : '?'}apikey=${tconectToken}=${encodedValue}`;
     } else {
-      apiUrl += `?apikey=${tconectToken}`;
+      if (!apiUrl.includes('apikey=')) apiUrl += `${apiUrl.includes('?') ? '&' : '?'}apikey=${tconectToken}`;
+      apiUrl = apiUrl.replace('{valor}', encodedValue);
     }
-    apiUrl = apiUrl.replace('{valor}', encodedValue);
   } else {
     apiUrl = endpointStore.replace('{valor}', encodedValue);
   }
@@ -234,11 +236,11 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
     const unwrapped =
       (responseData.data !== undefined && responseData.data !== null && typeof responseData.data === 'object')
         ? responseData.data
-      : (responseData.retorno !== undefined && typeof responseData.retorno === 'object')
-        ? responseData.retorno
-      : (responseData.resultado !== undefined && typeof responseData.resultado === 'object')
-        ? responseData.resultado
-      : responseData;
+        : (responseData.retorno !== undefined && typeof responseData.retorno === 'object')
+          ? responseData.retorno
+          : (responseData.resultado !== undefined && typeof responseData.resultado === 'object')
+            ? responseData.resultado
+            : responseData;
 
     // Checar se o provedor retornou erro no JSON (usando responseData original para pegar campos de status)
     const errorKeys = ['erro', 'error', 'msg', 'mensagem', 'message', 'status'];
@@ -250,11 +252,11 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
       if (errorKeys.includes(k)) {
         const val = responseData[key];
         if (k === 'status' && (val === false || val === 0 || String(val) === '0' ||
-            ['false', 'error', 'fail', 'failed', 'erro', 'falha'].includes(String(val).toLowerCase()))) {
+          ['false', 'error', 'fail', 'failed', 'erro', 'falha'].includes(String(val).toLowerCase()))) {
           isError = true;
         } else if (k !== 'status' && val && String(val).length > 2) {
           if (String(val).toLowerCase().includes('erro') || String(val).toLowerCase().includes('falha') ||
-              String(val).toLowerCase().includes('não encontrado') || String(val).toLowerCase().includes('not found')) {
+            String(val).toLowerCase().includes('não encontrado') || String(val).toLowerCase().includes('not found')) {
             isError = true;
             errorMsg = String(val);
           }
@@ -451,13 +453,13 @@ async function buildCategoryMenu(supabase: ReturnType<typeof createClient>) {
   const { data: types } = await supabase.from('api_categories').select('name, slug, icon').order('name');
   const buttons: any[] = [];
   const list = types || [];
-  
+
   for (let i = 0; i < list.length; i += 2) {
     const row = [
       { text: `${list[i].icon || '📁'} ${list[i].name.toUpperCase()}`, callback_data: `cat:${list[i].slug}` }
     ];
     if (list[i + 1]) {
-      row.push({ text: `${list[i+1].icon || '📁'} ${list[i + 1].name.toUpperCase()}`, callback_data: `cat:${list[i + 1].slug}` });
+      row.push({ text: `${list[i + 1].icon || '📁'} ${list[i + 1].name.toUpperCase()}`, callback_data: `cat:${list[i + 1].slug}` });
     }
     buttons.push(row);
   }
@@ -486,13 +488,13 @@ async function buildApiMenu(
   // Carrega APIs ligadas a esta categoria.
   const { data: cat } = await supabase.from('api_categories').select('id, name, slug').eq('slug', type).single();
   const { data: allApis } = await supabase.from('apis').select('*').eq('is_active', true);
-  
+
   let filtered = [];
   if (cat) {
     filtered = (allApis || []).filter(a => a.category_id === cat.id);
   } else {
-    filtered = (allApis || []).filter(a => 
-      (a.slug || '').toLowerCase() === type || 
+    filtered = (allApis || []).filter(a =>
+      (a.slug || '').toLowerCase() === type ||
       (a.group_name || '').toLowerCase() === type.toLowerCase()
     );
   }
@@ -697,13 +699,13 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   if (genericMatch) {
     const slug = genericMatch[1].toLowerCase();
     const val = (genericMatch[2] || '').trim();
-    
+
     const { data: cat } = await supabase.from('api_categories').select('id').eq('slug', slug).single();
     const { data: apis } = await supabase.from('apis').select('id').eq('is_active', true);
-    
+
     // Check if it exists in categories or if it matches any api's slug or group_name
-    const isApiExists = (apis || []).some((a: any) => 
-      (a.slug || '').toLowerCase() === slug || 
+    const isApiExists = (apis || []).some((a: any) =>
+      (a.slug || '').toLowerCase() === slug ||
       (a.group_name || '').toLowerCase() === slug
     );
 
