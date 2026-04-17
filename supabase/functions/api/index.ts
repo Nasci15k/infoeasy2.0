@@ -43,15 +43,32 @@ serve(async (req) => {
        return new Response(JSON.stringify({ error: 'Token inválido ou inativo.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
-    // DOCUMENTATION MODE: If token exists but no modulo/valor, show status
+    // DOCUMENTATION MODE: If token exists but no modulo/valor, show full module list
     if (!modulo || !valor) {
+      // Fetch all allowed modules with names
+      let allowedModules: any[] = [];
+      if (!allowedApis.includes('*')) {
+        const { data: moduleData } = await serviceClient
+          .from('apis')
+          .select('slug, name, group_name')
+          .in('slug', allowedApis);
+        allowedModules = moduleData || [];
+      } else {
+        const { data: moduleData } = await serviceClient
+          .from('apis')
+          .select('slug, name, group_name')
+          .not('slug', 'is', null)
+          .order('group_name');
+        allowedModules = moduleData || [];
+      }
+
       return new Response(JSON.stringify({
         status: 'online',
         client: apiToken.label,
         client_name: apiToken.client_name,
-        usage: `${apiToken.requests_made} / ${apiToken.daily_limit}`,
-        allowed_apis: apiToken.allowed_apis,
-        message: 'Para consultar, envie os parâmetros [modulo] e [valor].'
+        daily_usage: `${apiToken.requests_made} / ${apiToken.daily_limit}`,
+        allowed_modules: allowedModules,
+        usage: 'GET /api?token=SEU_TOKEN&modulo=SLUG_DO_MODULO&valor=VALOR'
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -69,15 +86,47 @@ serve(async (req) => {
        return new Response(JSON.stringify({ error: 'Limite diário da API excedido.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
-    // Resolve slug to real endpoint
-    const { data: apiMeta, error: metaError } = await serviceClient
-      .from('apis')
-      .select('endpoint, name')
-      .eq('slug', modulo)
-      .single();
+    // Resolve slug to real endpoint — try exact slug first, then endpoint contains
+    let apiMeta: any = null;
 
-    if (metaError || !apiMeta) {
-       return new Response(JSON.stringify({ error: `O módulo [${modulo}] não existe ou foi renomeado.` }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+    // Attempt 1: exact slug match
+    const { data: bySlug } = await serviceClient
+      .from('apis')
+      .select('endpoint, name, slug')
+      .eq('slug', modulo)
+      .maybeSingle();
+
+    if (bySlug) {
+      apiMeta = bySlug;
+    } else {
+      // Attempt 2: endpoint contains the modulo string (e.g. 'panel:iseek-dados---placa')
+      const { data: byEndpoint } = await serviceClient
+        .from('apis')
+        .select('endpoint, name, slug')
+        .or(`endpoint.eq.panel:${modulo},endpoint.like.%${modulo}%`)
+        .order('group_name', { ascending: true }) // Info Easy first
+        .limit(1)
+        .maybeSingle();
+
+      if (byEndpoint) {
+        apiMeta = byEndpoint;
+      }
+    }
+
+    if (!apiMeta) {
+       // Build helpful list of valid module slugs
+       const { data: validModules } = await serviceClient
+         .from('apis')
+         .select('slug, name')
+         .not('slug', 'is', null)
+         .limit(20);
+
+       const examples = validModules?.slice(0, 5).map((m: any) => m.slug).join(', ') || '';
+       return new Response(JSON.stringify({ 
+         error: `O módulo [${modulo}] não existe ou foi renomeado.`,
+         hint: `Exemplos de módulos válidos: ${examples}`,
+         docs: 'Acesse /api?token=SEU_TOKEN para ver todos os módulos disponíveis no seu plano.'
+       }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
     }
 
     const providerModulo = apiMeta.endpoint.includes(':') ? apiMeta.endpoint.split(':')[1] : apiMeta.endpoint;
