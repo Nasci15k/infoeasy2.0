@@ -328,7 +328,17 @@ function DatabasesSection() {
                       </Button>
                     )}
                   </div>
-   function CheckersSection() {
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CheckersSection() {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
