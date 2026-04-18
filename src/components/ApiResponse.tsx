@@ -50,7 +50,14 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
           if (currentContext.name) parts.push(String(currentContext.name).toUpperCase());
           if (currentContext.rel) parts.push(String(currentContext.rel).toUpperCase());
           let label = parts.length > 0 ? parts.join(' - ') : key;
-          images.push({ key, value: String(value), label: String(label) });
+          
+          // Beautify generic labels
+          const lowLabel = label.toLowerCase();
+          if (['base64', 'foto', 'photo', 'image', 'imagem', 'thumb', 'content'].includes(lowLabel)) {
+            label = 'FOTO DE IDENTIFICAÇÃO';
+          }
+
+          images.push({ key, value: String(value), label: formatFieldName(label) });
         } else if (typeof value === 'object') {
           images = [...images, ...findImagesWithContext(value, currentContext)];
         }
@@ -113,6 +120,16 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     if (v === 'F' || v === 'f') return 'FEMININO';
     if (v === 'M' || v === 'm') return 'MASCULINO';
     if (!isValidValue(v) || String(v).toLowerCase().trim() === 'nan') return 'NÃO CONSTA / SEM REGISTRO';
+    
+    // Auto-format timestamps if they look like milliseconds (13 digits)
+    if (typeof v === 'number' && v > 1000000000000 && v < 2000000000000) {
+      try {
+        return new Date(v).toLocaleDateString('pt-BR');
+      } catch (e) {
+        return String(v).toUpperCase();
+      }
+    }
+    
     return String(v).toUpperCase();
   };
 
@@ -129,25 +146,35 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'images': { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5" />, color: 'text-blue-600' },
       'personal': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
       'basico': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
+      'cpf': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
+      'nome': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
+      'rg': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
+      'nascimento': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
       'filiacao': { label: 'DADOS FAMILIARES', icon: <Users className="h-5 w-5" />, color: 'text-indigo-600' },
+      'mae': { label: 'DADOS FAMILIARES', icon: <Users className="h-5 w-5" />, color: 'text-indigo-600' },
+      'pai': { label: 'DADOS FAMILIARES', icon: <Users className="h-5 w-5" />, color: 'text-indigo-600' },
       'parente': { label: 'DADOS FAMILIARES', icon: <Users className="h-5 w-5" />, color: 'text-indigo-600' },
       'vinculo': { label: 'DADOS FAMILIARES', icon: <Users className="h-5 w-5" />, color: 'text-indigo-600' },
       'vacina': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="h-5 w-5" />, color: 'text-rose-600' },
+      'cns': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="h-5 w-5" />, color: 'text-rose-600' },
       'beneficio': { label: 'BENEFÍCIOS E SOCIAL', icon: <Heart className="h-5 w-5" />, color: 'text-rose-600' },
       'bolsa': { label: 'BENEFÍCIOS E SOCIAL', icon: <Heart className="h-5 w-5" />, color: 'text-rose-600' },
       'saude': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="h-5 w-5" />, color: 'text-rose-600' },
       'financeir': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="h-5 w-5" />, color: 'text-emerald-600' },
       'renda': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="h-5 w-5" />, color: 'text-blue-600' },
       'rfb': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="h-5 w-5" />, color: 'text-indigo-600' },
+      'receita': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="h-5 w-5" />, color: 'text-indigo-600' },
       'ender': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="h-5 w-5" />, color: 'text-rose-600' },
       'residente': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="h-5 w-5" />, color: 'text-rose-600' },
       'contat': { label: 'CANAIS DE CONTATO', icon: <Phone className="h-5 w-5" />, color: 'text-emerald-600' },
       'telefone': { label: 'CANAIS DE CONTATO', icon: <Phone className="h-5 w-5" />, color: 'text-emerald-600' },
       'email': { label: 'CANAIS DE CONTATO', icon: <Phone className="h-5 w-5" />, color: 'text-emerald-600' },
+      'fale': { label: 'CANAIS DE CONTATO', icon: <Phone className="h-5 w-5" />, color: 'text-emerald-600' },
       'empresa': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="h-5 w-5" />, color: 'text-blue-600' },
       'socio': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="h-5 w-5" />, color: 'text-blue-600' },
       'processo': { label: 'DIREITO E PROCESSOS', icon: <Scale className="h-5 w-5" />, color: 'text-slate-600' },
       'mandado': { label: 'DIREITO E PROCESSOS', icon: <ShieldCheck className="h-5 w-5" />, color: 'text-slate-600' },
+      'justica': { label: 'DIREITO E PROCESSOS', icon: <Scale className="h-5 w-5" />, color: 'text-slate-600' },
       'veicul': { label: 'VEÍCULOS E TRÂNSITO', icon: <Car className="h-5 w-5" />, color: 'text-amber-600' }
     };
     for (const [keyWord, theme] of Object.entries(themes)) {
@@ -374,13 +401,18 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
 
             <CollapsibleContent className="pt-10 animate-in slide-in-from-top-4 duration-500">
               {label === 'GALERIA DE FOTOS' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8">
+                <div className={cn(
+                  "grid gap-8",
+                  cat.data._images.length === 1 
+                    ? "grid-cols-1 max-w-sm mx-auto" 
+                    : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+                )}>
                   {cat.data._images.map((img: any, i: number) => (
                     <div key={i} className="group/img space-y-4">
-                      <div className="aspect-[3/4] relative rounded-[2rem] overflow-hidden border-4 border-white shadow-xl bg-slate-100 transition-all duration-700 group-hover/img:scale-105 group-hover/img:ring-4 ring-blue-100">
-                        <ImageDisplay imageData={img.value} name={img.label} />
+                      <div className="aspect-[3/4] relative rounded-3xl overflow-hidden border-4 border-white shadow-2xl bg-slate-100 transition-all duration-700 group-hover/img:scale-105 group-hover/img:ring-4 ring-blue-100">
+                        <ImageDisplay imageData={img.value} name={img.label} className="w-full h-full" />
                       </div>
-                      <div className="text-[10px] text-center font-black text-slate-400 uppercase leading-tight px-1 group-hover/img:text-blue-600 transition-colors">
+                      <div className="text-[10px] text-center font-black text-slate-500 uppercase leading-tight px-1 group-hover/img:text-blue-600 transition-colors tracking-widest">
                         {img.label}
                       </div>
                     </div>

@@ -50,20 +50,21 @@ export function ImageDisplay({ imageUrl, imageData, name, className }: ImageDisp
 
   return (
     <div className={cn(
-      "relative group overflow-hidden rounded-xl bg-muted shadow-sm border border-border/30 aspect-square transition-all duration-500",
+      "relative group overflow-hidden rounded-2xl bg-slate-100 shadow-lg border border-slate-200 aspect-[3/4] transition-all duration-500",
       className
     )}>
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted animate-pulse">
-          <Loader2 className="h-5 w-5 text-primary/30 animate-spin" />
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-50 animate-pulse">
+          <Loader2 className="h-6 w-6 text-blue-600/20 animate-spin" />
         </div>
       )}
       <img
         src={src}
         alt={name || 'Foto'}
         className={cn(
-          "w-full h-full object-cover transition-transform duration-700 group-hover:scale-110",
-          loading ? "opacity-0" : "opacity-100"
+          "w-full h-full object-cover transition-all duration-700",
+          loading ? "opacity-0 scale-95" : "opacity-100 scale-100",
+          "group-hover:scale-110"
         )}
         onLoad={() => setLoading(false)}
         onError={() => {
@@ -71,9 +72,15 @@ export function ImageDisplay({ imageUrl, imageData, name, className }: ImageDisp
           setLoading(false);
         }}
       />
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-        <p className="text-[9px] text-white font-bold truncate uppercase">{name || 'Foto'}</p>
-      </div>
+      
+      {/* Overlay subtil no hover */}
+      <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      
+      {name && (
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out">
+          <p className="text-[9px] text-white font-black truncate uppercase tracking-widest text-center">{name}</p>
+        </div>
+      )}
     </div>
   );
 }
