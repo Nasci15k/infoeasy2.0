@@ -88,9 +88,9 @@ serve(async (req) => {
     const itemId = planId || dbId || 'wallet';
     const orderId = `${user.id}_${orderType}_${itemId}_${timestamp}`;
 
-    // C7 API Keys
-    const apiKey = Deno.env.get('C7_API_KEY');
-    const apiSecret = Deno.env.get('C7_API_SECRET');
+    // C7 API Keys - Added trim() as a safety measure
+    const apiKey = (Deno.env.get('C7_API_KEY') || "").trim();
+    const apiSecret = (Deno.env.get('C7_API_SECRET') || "").trim();
 
     if (!apiKey || !apiSecret) {
       throw new Error('Credenciais de pagamento (C7) não configuradas no servidor');
@@ -104,16 +104,45 @@ serve(async (req) => {
         .substring(0, 100);
     };
 
-    const cleanDescription = sanitizeText(orderDescription);
+    // Use a very safe static description for testing
+    const finalDescription = "Pagamento InfoEasy";
 
-    const payloadObj = {
-      amount: Number(amount.toFixed(2)),
-      externalId: orderId,
-      callbackUrl: `${supabaseUrl}/functions/v1/c7-webhook`,
-      description: cleanDescription
+    // Generate a short, clean TxID (10 chars: A-Z, 0-9)
+    const generateShortId = (len = 10) => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789';
+      let res = '';
+      for (let i = 0; i < len; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+      return res;
     };
 
-    console.log("Requesting C7 Payment:", JSON.stringify(payloadObj));
+    const shortTxId = generateShortId();
+
+    // 1. Create a Pending Payment record with the short ID
+    const { data: pendingPayment, error: pendingError } = await supabaseService
+      .from('pending_payments')
+      .insert({
+        user_id: user.id,
+        type: orderType,
+        item_id: planId || dbId || null,
+        amount: Number(amount.toFixed(2)),
+        period: period || null,
+        status: 'pending',
+        txid: shortTxId
+      })
+      .select()
+      .single();
+
+    if (pendingError || !pendingPayment) {
+      console.error("Pending Payment Error (DB):", pendingError);
+      throw new Error('Falha ao registrar intenção de pagamento no banco.');
+    }
+
+    const payloadObj = {
+      amount: amount.toFixed(2),
+      externalId: shortTxId
+    };
+
+    console.log("SENDING STRING PAYLOAD (NO CALLBACK):", JSON.stringify(payloadObj));
 
     const payloadBody = JSON.stringify(payloadObj);
     const ts = Math.floor(Date.now() / 1000).toString();

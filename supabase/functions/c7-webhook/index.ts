@@ -57,52 +57,40 @@ serve(async (req) => {
         return new Response('OK', { status: 200 });
       }
 
-      // Format: {UUID-36chars}_{orderType}_{itemId}_{timestamp}
-      // UUID is ALWAYS exactly 36 characters: 8-4-4-4-12 with hyphens
-      // We cannot split by '_' alone because itemId might also be a UUID with hyphens
-      if (externalId.length < 38) {
-        console.warn('externalId too short to be valid:', externalId);
+      const incomingTxId = externalId;
+
+      // 1. Fetch the original payment details using the short TxID
+      const { data: pending, error: searchError } = await serviceClient
+        .from('pending_payments')
+        .select('*')
+        .eq('txid', incomingTxId)
+        .single();
+
+      if (searchError || !pending) {
+        console.error('Pending payment not found for ID:', pendingId);
+        return new Response('OK', { status: 200 }); // Return 200 to stop retries if not our business
+      }
+
+      if (pending.status === 'confirmed') {
+        console.log('Payment already processed:', pendingId);
         return new Response('OK', { status: 200 });
       }
 
-      const userId = externalId.substring(0, 36); // always 36 chars for UUID
-      const afterUser = externalId.substring(37); // skip the '_' separator
+      const userId = pending.user_id;
+      const orderType = pending.type;
+      const itemId = pending.item_id;
+      const period = pending.period;
 
-      // orderType is the next segment before the first '_'
-      const typeEnd = afterUser.indexOf('_');
-      if (typeEnd === -1) {
-        console.warn('Could not find orderType in externalId:', externalId);
-        return new Response('OK', { status: 200 });
-      }
-      const orderType = afterUser.substring(0, typeEnd); // 'plan' | 'wallet' | 'database'
-      const afterType = afterUser.substring(typeEnd + 1); // "{itemId}_{timestamp}"
-
-      // timestamp is the last numeric segment; itemId is everything before it
-      const lastUnderscore = afterType.lastIndexOf('_');
-      const itemId = lastUnderscore !== -1 ? afterType.substring(0, lastUnderscore) : afterType;
-
-      console.log(`Processing: userId=${userId}, type=${orderType}, item=${itemId}`);
+      console.log(`Processing Fulfillment: userId=${userId}, type=${orderType}, item=${itemId}`);
 
       if (orderType === 'plan') {
-        // Look up the plan from site_plans to get duration and limit
         const { data: plan, error: planError } = await serviceClient
           .from('site_plans')
           .select('*')
           .eq('id', itemId)
           .single();
 
-        let dailyLimit = 100;
-        let durationDays = 30;
-
-        if (plan && !planError) {
-          dailyLimit = plan.daily_limit || 100;
-          // Determine duration by price comparison
-          if (paidAmount <= (plan.price_weekly || 0) + 2) {
-            durationDays = 7; // Weekly
-          } else {
-            durationDays = 30; // Monthly
-          }
-        }
+        let durationDays = (period === 'weekly') ? 7 : 30;
 
         const expirationDate = new Date();
         expirationDate.setDate(expirationDate.getDate() + durationDays);
@@ -113,15 +101,12 @@ serve(async (req) => {
           plan_expires_at: expirationDate.toISOString()
         }).eq('id', userId);
 
-        // Log the transaction
         await serviceClient.from('wallet_transactions').insert({
           user_id: userId,
           amount: paidAmount,
           type: 'purchase_plan',
           description: `Assinatura: ${plan?.name || itemId} — ${durationDays} dias`
         });
-
-        console.log(`Plan activated for user ${userId}: ${plan?.name}, ${durationDays} days`);
 
       } else if (orderType === 'wallet') {
         const { data: profile } = await serviceClient.from('profiles').select('balance').eq('id', userId).single();
@@ -136,9 +121,7 @@ serve(async (req) => {
           description: `Recarga de carteira via Pix: R$ ${paidAmount.toFixed(2)}`
         });
 
-        console.log(`Wallet topped up for user ${userId}: +R$${paidAmount}`);
-
-      } else if (orderType === 'database') {
+      } else if (orderType === 'database' || orderType === 'checker') {
         await serviceClient.from('purchased_databases').upsert({
           user_id: userId,
           database_id: itemId
@@ -148,11 +131,13 @@ serve(async (req) => {
           user_id: userId,
           amount: paidAmount,
           type: 'purchase_db',
-          description: `Compra de Base de Dados (ID: ${itemId})`
+          description: `Compra de ${orderType === 'checker' ? 'Checker' : 'Base'} (ID: ${itemId})`
         });
-
-        console.log(`Database purchased for user ${userId}: ${itemId}`);
       }
+
+      // Mark as confirmed
+      await serviceClient.from('pending_payments').update({ status: 'confirmed' }).eq('id', pending.id);
+      console.log(`Transaction ${pendingId} finalized successfully.`);
     }
 
     return new Response('OK', { status: 200 });

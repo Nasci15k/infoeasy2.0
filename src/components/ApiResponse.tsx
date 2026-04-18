@@ -92,13 +92,19 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       'cns': 'CNS', 'cpf': 'CPF', 'cnpj': 'CNPJ', 'rg': 'RG', 'uf': 'UF', 'pis': 'PIS', 'cep': 'CEP',
       'mae': 'Mãe', 'pai': 'Pai', 'nasc': 'Nascimento', 'social': 'Nome Social', 'ddd': 'DDD', 'vinculo': 'Vínculo',
       'sexo': 'Sexo', 'logradouro': 'Endereço', 'obito': 'Óbito', 'situacao': 'Situação', 'restricao': 'Restrição',
-      'nacionalidade': 'Nacionalidade', 'naturalidade': 'Naturalidade', 'idade': 'Idade', 'profissao': 'Profissão'
+      'nacionalidade': 'Nacionalidade', 'naturalidade': 'Naturalidade', 'idade': 'Idade', 'profissao': 'Profissão',
+      'escolaridade': 'Escolaridade', 'estcivil': 'Estado Civil', 'nascimento': 'Nascimento', 'filiacao': 'Filiação',
+      'frente': 'Frente', 'verso': 'Verso', 'sigilo': 'Sigilo', 'lote': 'Lote', 'cidade': 'Cidade', 'bairro': 'Bairro'
     };
     const cleanKey = key.split(' > ').pop() || key;
     if (specials[cleanKey.toLowerCase()]) return specials[cleanKey.toLowerCase()];
     return cleanKey.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()
       .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .map(word => {
+        const w = word.toLowerCase();
+        if (specials[w]) return specials[w];
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
       .join(' ');
   };
 
@@ -122,14 +128,26 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
     const themes: Record<string, { label: string; icon: any; color: string }> = {
       'images': { label: 'GALERIA DE FOTOS', icon: <ImageIcon className="h-5 w-5" />, color: 'text-blue-600' },
       'personal': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
+      'basico': { label: 'IDENTIFICAÇÃO PRINCIPAL', icon: <User className="h-5 w-5" />, color: 'text-blue-600' },
+      'filiacao': { label: 'DADOS FAMILIARES', icon: <Users className="h-5 w-5" />, color: 'text-indigo-600' },
+      'parente': { label: 'DADOS FAMILIARES', icon: <Users className="h-5 w-5" />, color: 'text-indigo-600' },
+      'vinculo': { label: 'DADOS FAMILIARES', icon: <Users className="h-5 w-5" />, color: 'text-indigo-600' },
       'vacina': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="h-5 w-5" />, color: 'text-rose-600' },
+      'beneficio': { label: 'BENEFÍCIOS E SOCIAL', icon: <Heart className="h-5 w-5" />, color: 'text-rose-600' },
+      'bolsa': { label: 'BENEFÍCIOS E SOCIAL', icon: <Heart className="h-5 w-5" />, color: 'text-rose-600' },
+      'saude': { label: 'SAÚDE E VACINAÇÃO', icon: <Syringe className="h-5 w-5" />, color: 'text-rose-600' },
       'financeir': { label: 'FINANÇAS E BANCÁRIO', icon: <Landmark className="h-5 w-5" />, color: 'text-emerald-600' },
       'renda': { label: 'RENDA E PATRIMÔNIO', icon: <CreditCard className="h-5 w-5" />, color: 'text-blue-600' },
       'rfb': { label: 'SITUAÇÃO NA RECEITA FEDERAL', icon: <UserCheck className="h-5 w-5" />, color: 'text-indigo-600' },
       'ender': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="h-5 w-5" />, color: 'text-rose-600' },
+      'residente': { label: 'LOCALIZAÇÃO / ENDEREÇOS', icon: <MapPin className="h-5 w-5" />, color: 'text-rose-600' },
       'contat': { label: 'CANAIS DE CONTATO', icon: <Phone className="h-5 w-5" />, color: 'text-emerald-600' },
+      'telefone': { label: 'CANAIS DE CONTATO', icon: <Phone className="h-5 w-5" />, color: 'text-emerald-600' },
+      'email': { label: 'CANAIS DE CONTATO', icon: <Phone className="h-5 w-5" />, color: 'text-emerald-600' },
       'empresa': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="h-5 w-5" />, color: 'text-blue-600' },
+      'socio': { label: 'PARTICIPAÇÕES SOCIETÁRIAS', icon: <Users className="h-5 w-5" />, color: 'text-blue-600' },
       'processo': { label: 'DIREITO E PROCESSOS', icon: <Scale className="h-5 w-5" />, color: 'text-slate-600' },
+      'mandado': { label: 'DIREITO E PROCESSOS', icon: <ShieldCheck className="h-5 w-5" />, color: 'text-slate-600' },
       'veicul': { label: 'VEÍCULOS E TRÂNSITO', icon: <Car className="h-5 w-5" />, color: 'text-amber-600' }
     };
     for (const [keyWord, theme] of Object.entries(themes)) {
@@ -184,7 +202,30 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
       if (!categories[label]) categories[label] = { label, icon: theme.icon, color: theme.color, data: {} };
       categories[label].data[key] = value;
     });
-    return Object.entries(categories).sort((a,b) => a[0].localeCompare(b[0]));
+
+    // Custom priority for dossier feel
+    const PRIORITY: Record<string, number> = {
+      'GALERIA DE FOTOS': 1,
+      'IDENTIFICAÇÃO PRINCIPAL': 2,
+      'DADOS FAMILIARES': 3,
+      'CANAIS DE CONTATO': 4,
+      'LOCALIZAÇÃO / ENDEREÇOS': 5,
+      'BENEFÍCIOS E SOCIAL': 6,
+      'SAÚDE E VACINAÇÃO': 7,
+      'FINANÇAS E BANCÁRIO': 8,
+      'RENDA E PATRIMÔNIO': 9,
+      'SITUAÇÃO NA RECEITA FEDERAL': 10,
+      'PARTICIPAÇÕES SOCIETÁRIAS': 11,
+      'VEÍCULOS E TRÂNSITO': 12,
+      'DIREITO E PROCESSOS': 13,
+      'DIVERSOS / CONSULTA': 100
+    };
+
+    return Object.entries(categories).sort((a,b) => {
+      const pA = PRIORITY[a[0]] || 50;
+      const pB = PRIORITY[b[0]] || 50;
+      return pA - pB;
+    });
   }, [displayData]);
 
   const renderRecursive = (obj: any, depth = 0): JSX.Element | null => {

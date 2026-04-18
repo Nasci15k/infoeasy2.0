@@ -12,6 +12,20 @@ const corsHeaders = {
 const TELEGRAM_CHAR_LIMIT = 3800; // margem de segurança abaixo de 4096
 const DISCORD_CHAR_LIMIT = 1900; // margem abaixo de 2000
 
+const BLACKLIST_INTERNAL = [
+  'token', 'apikey', 'senha', 'password', 'auth',
+  'protocolo', 'sucesso', 'usuario',
+  'consumo_hoje', 'reset_em', 'total_diario', 'limites',
+  'status', 'msg', 'message', 'erro', 'error', 'query_value',
+  'cache', 'cached_at', 'cached at', 'conta', 'expiracao', 'expiração',
+  'saldo', 'tempo_segundos', 'segundos', 'tempo segundos',
+  'data_execucao', 'execucao', 'execução',
+  'daily limit', 'daily_limit', 'requests remaining', 'requests_remaining', 
+  'requests used', 'requests_used', 'api info', 'api_info'
+];
+
+const EXACT_INTERNAL = ['valor', 'status', 'msg', 'message', 'sucesso', 'erro', 'error', 'modulo', 'usuario', 'conta', 'api info'];
+
 // ──────────────────────────────────────────────
 // Gerador de token curto
 // ──────────────────────────────────────────────
@@ -61,23 +75,10 @@ function jsonToText(obj: any, depth = 0, maxDepth = 6): string {
     return text;
   }
 
-  const blacklistInternal = [
-    'token', 'apikey', 'senha', 'password', 'auth',
-    'modulo', 'valor', 'protocolo', 'sucesso', 'usuario',
-    'consumo_hoje', 'reset_em', 'total_diario', 'limites',
-    'status', 'msg', 'message', 'erro', 'error', 'query_value',
-    'cache', 'cached_at', 'cached at', 'conta', 'expiracao', 'expiração',
-    'saldo', 'tempo_segundos', 'segundos', 'tempo segundos',
-    'data_execucao', 'execucao', 'execução'
-  ];
-
   for (const [key, value] of Object.entries(obj)) {
     const k = key.toLowerCase();
 
-    // Filtro inteligente: Impedir que "valor_veiculo" seja filtrado por causa de "valor"
-    // Usamos correspondência exata para nomes comuns que podem ser prefixos legítimos
-    const exactInternal = ['valor', 'data', 'status', 'msg', 'message', 'sucesso', 'erro', 'error', 'modulo', 'usuario', 'conta'];
-    const isInternal = exactInternal.includes(k) || blacklistInternal.some(b => k === b || (b.length > 5 && k.includes(b)));
+    const isInternal = EXACT_INTERNAL.includes(k) || BLACKLIST_INTERNAL.some(b => k === b || (b.length > 5 && k.includes(b)));
 
     if (isInternal) continue;
     if (typeof value === 'object' && value !== null) {
@@ -232,15 +233,29 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
       throw new Error('A resposta do provedor é inválida ou vazia.');
     }
 
-    // Desembrulhar campos wrapper comuns (TConect retorna { status, data: {... dados reais ...} })
-    const unwrapped =
-      (responseData.data !== undefined && responseData.data !== null && typeof responseData.data === 'object')
-        ? responseData.data
-        : (responseData.retorno !== undefined && typeof responseData.retorno === 'object')
-          ? responseData.retorno
-          : (responseData.resultado !== undefined && typeof responseData.resultado === 'object')
-            ? responseData.resultado
-            : responseData;
+    // Desembrulhar campos wrapper comuns de forma recursiva/inteligente
+    const preferredKeys = ['resultado', 'resultados', 'RETORNO', 'retorno', 'registros', 'DADOS', 'data', 'dados'];
+    
+    function smartUnwrap(obj: any): any {
+      if (!obj || typeof obj !== 'object') return obj;
+      
+      for (const key of preferredKeys) {
+        if (obj[key] && typeof obj[key] === 'object' && obj[key] !== null) {
+          // Se for 'data', verificamos se é lixo de meta ou se apenas contém mais dados
+          const keys = Object.keys(obj[key]).map(k => k.toLowerCase());
+          const isMetadata = keys.some(k => k.includes('limit') || k.includes('request') || k.includes('info'));
+          const hasOtherBetterKeys = preferredKeys.some(k => k !== 'data' && obj[k]);
+          
+          if (isMetadata && hasOtherBetterKeys) continue;
+          
+          // Se o que achamos é apenas OUTRO container da nossa lista, mergulhamos mais fundo
+          return smartUnwrap(obj[key]);
+        }
+      }
+      return obj;
+    }
+
+    let unwrapped = smartUnwrap(responseData);
 
     // Checar se o provedor retornou erro no JSON (usando responseData original para pegar campos de status)
     const errorKeys = ['erro', 'error', 'msg', 'mensagem', 'message', 'status'];
@@ -264,9 +279,15 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
       }
     }
 
-    if (isError || responseData.erro || responseData.error) {
-      errorMsg = responseData.msg || responseData.erro || responseData.error || responseData.mensagem || responseData.message || errorMsg;
-      return { success: false, message: String(errorMsg) };
+    // Verificação de conteúdo real pós-desembrulho
+    const substantiveKeys = Object.keys(unwrapped).filter(k => {
+      const kl = k.toLowerCase();
+      const isInternal = EXACT_INTERNAL.includes(kl) || BLACKLIST_INTERNAL.some(b => kl === b || (b.length > 5 && kl.includes(b)));
+      return !isInternal;
+    });
+
+    if (substantiveKeys.length === 0) {
+      return { success: false, message: 'Nenhum dado substantivo encontrado para esta consulta.' };
     }
 
     return { success: true, data: unwrapped, apiName: api.name };
@@ -695,7 +716,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   }
 
   // Universal Command Routing
-  const genericMatch = text.match(/^\/(\w+)(?:@\w+)?(?:\s+(.+))?$/i);
+  const genericMatch = text.match(/^\/([\w-]+)(?:@\w+)?(?:\s+(.+))?$/i);
   if (genericMatch) {
     const slug = genericMatch[1].toLowerCase();
     const val = (genericMatch[2] || '').trim();

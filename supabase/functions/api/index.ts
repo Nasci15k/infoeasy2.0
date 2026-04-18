@@ -71,7 +71,13 @@ serve(async (req) => {
         daily_usage: `${apiToken.requests_made} / ${apiToken.daily_limit}`,
         allowed_modules: allowedModules,
         usage: 'GET /api?token=SEU_TOKEN&modulo=SLUG_DO_MODULO&valor=VALOR'
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        } 
+      });
     }
 
     if (!valor) {
