@@ -96,12 +96,24 @@ serve(async (req) => {
       throw new Error('Credenciais de pagamento (C7) não configuradas no servidor');
     }
 
+    // Clean description: No accents, max 100 chars
+    const sanitizeText = (text: string) => {
+      return text.normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w\s-]/g, "")
+        .substring(0, 100);
+    };
+
+    const cleanDescription = sanitizeText(orderDescription);
+
     const payloadObj = {
-      amount: amount,
+      amount: Number(amount.toFixed(2)),
       externalId: orderId,
       callbackUrl: `${supabaseUrl}/functions/v1/c7-webhook`,
-      description: orderDescription
+      description: cleanDescription
     };
+
+    console.log("Requesting C7 Payment:", JSON.stringify(payloadObj));
 
     const payloadBody = JSON.stringify(payloadObj);
     const ts = Math.floor(Date.now() / 1000).toString();
@@ -123,8 +135,8 @@ serve(async (req) => {
     const c7Data = await c7Response.json();
 
     if (!c7Response.ok || !c7Data.ok) {
-       console.error("C7 API Error", c7Data);
-       throw new Error(`Erro no provedor de pagamento: ${c7Data.message || 'Falha na criação'}`);
+       console.error("C7 API Response Error:", JSON.stringify(c7Data));
+       throw new Error(`Erro no provedor de pagamento: ${c7Data.message || (c7Data.error?.message) || 'Falha na criação'}`);
     }
 
     return new Response(JSON.stringify({ 
@@ -133,9 +145,9 @@ serve(async (req) => {
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
-    console.error('Payment Error:', error.message);
+    console.error('Payment Error (Final):', error.message);
     return new Response(JSON.stringify({ success: false, error: error.message }), { 
-      status: 200, // Return 200 to allow frontend to handle the error properly
+      status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
   }

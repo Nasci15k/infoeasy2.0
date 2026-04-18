@@ -43,8 +43,10 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Token inválido ou inativo.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // DOCUMENTATION MODE: If token exists but no modulo/valor, show full module list
-    if (!modulo || !valor) {
+    const allowedApis = apiToken.allowed_apis || [];
+
+    // DOCUMENTATION MODE: If token exists but no modulo, show full module list
+    if (!modulo || modulo.trim() === '') {
       // Fetch all allowed modules with names
       let allowedModules: any[] = [];
       if (!allowedApis.includes('*')) {
@@ -72,8 +74,11 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (!valor) {
+      return new Response(JSON.stringify({ error: 'Falta o parâmetro [valor]' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // granular permission check
-    const allowedApis = apiToken.allowed_apis || [];
     if (!allowedApis.includes('*') && !allowedApis.includes(modulo)) {
       return new Response(JSON.stringify({
         error: 'Seu token não possui permissão para este módulo.',
@@ -135,13 +140,23 @@ serve(async (req) => {
     settings?.forEach((s: any) => { cfg[s.key] = s.value; });
 
     const encodedValue = encodeURIComponent(valor);
+    const cleanValue = valor.replace(/\D/g, '');
     let targetUrl = '';
 
     if (apiMeta.endpoint.startsWith('panel:')) {
-      const modulo = apiMeta.endpoint.split(':')[1];
+      const panelModulo = apiMeta.endpoint.split(':')[1];
       const API_TOKEN = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
       const API_BASE_URL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
-      targetUrl = `${API_BASE_URL}?token=${API_TOKEN}&modulo=${modulo}&valor=${encodedValue}`;
+      targetUrl = `${API_BASE_URL}?token=${API_TOKEN}&modulo=${panelModulo}&valor=${encodedValue}`;
+
+    } else if (apiMeta.endpoint.startsWith('brasilpro:')) {
+      const param = apiMeta.endpoint.split(':')[1];
+      targetUrl = `http://apisbrasilpro.site/api/busca_${param}.php?${param}=${encodedValue}`;
+
+    } else if (apiMeta.endpoint.startsWith('duality:')) {
+      const apiName = apiMeta.endpoint.split(':')[1];
+      targetUrl = `https://duality.lat/?token=DUALITY-FREE&api=${apiName}&query=${cleanValue}`;
+
     } else if (apiMeta.endpoint.startsWith('tconect:')) {
       const path = apiMeta.endpoint.split(':')[1];
       const tconectToken = cfg['tconect_api_token'] || "PNSAPIS";
@@ -156,12 +171,16 @@ serve(async (req) => {
       }
       targetUrl = targetUrl.replace('{valor}', encodedValue);
     } else {
+      // Direct URL support
       targetUrl = apiMeta.endpoint.replace('{valor}', encodedValue);
     }
 
     // Execute Request
     const response = await fetch(targetUrl, {
-      headers: { 'User-Agent': 'InfoEasy/Proxy API' }
+      headers: { 
+        'User-Agent': 'InfoEasy/Proxy API (Public)',
+        'Accept': 'application/json'
+      }
     });
 
     if (!response.ok) {
@@ -202,7 +221,8 @@ serve(async (req) => {
         'server_time', 'execution_ms', 'provider', 'provider_info',
         'source_db', 'raw_response', 'token_info', 'api_info',
         'requests_remaining', 'owner', 'reset_interval_minutes',
-        'minutes_until_reset', 'used_in_period'
+        'minutes_until_reset', 'used_in_period', 'developer', 'developer2',
+        'resposta', 'status', 'copyright', 'criado_por', 'desenvolvedor'
       ];
 
       for (const key in obj) {
@@ -266,8 +286,14 @@ serve(async (req) => {
     });
 
     // FINAL RESPONSE WRAPPING: Intelligent flattening to avoid duplication
-    // If provider already returned a 'data' field, use its content directly
-    const realData = (sanitizedResp.data !== undefined) ? sanitizedResp.data : sanitizedResp;
+    // We look for 'resultado', 'data', 'dados' or 'resultados' to return the core info
+    const realData = sanitizedResp.resultado || 
+                     sanitizedResp.RESULTADOS || 
+                     sanitizedResp.data || 
+                     sanitizedResp.dados || 
+                     sanitizedResp.RETORNO || 
+                     sanitizedResp.retorno || 
+                     sanitizedResp;
 
     const finalResponse = {
       consulta: {

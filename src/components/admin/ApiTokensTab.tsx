@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-import { Key, Copy, Check, Trash2, ShieldCheck, Globe, Info, Search } from 'lucide-react';
+import { Key, Copy, Check, Trash2, ShieldCheck, Globe, Info, Search, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -34,6 +34,7 @@ export function ApiTokensTab() {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   // Form states
+  const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string>('external');
   const [clientName, setClientName] = useState('');
   const [contactInfo, setContactInfo] = useState('');
@@ -90,7 +91,7 @@ export function ApiTokensTab() {
     );
   }, [availableApis, searchTerm]);
 
-  const generateTokenMutation = useMutation({
+  const upsertTokenMutation = useMutation({
     mutationFn: async () => {
       if (!label || (userId === 'external' && !clientName)) {
         throw new Error('Preencha o Rótulo e o Nome do Cliente');
@@ -100,11 +101,8 @@ export function ApiTokensTab() {
         throw new Error('Selecione ao menos 1 API para este token.');
       }
 
-      const tokenHash = 'tk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-
       const payload = {
         user_id: userId === 'external' ? null : userId,
-        token_hash: tokenHash,
         label: label,
         client_name: userId === 'external' ? clientName : (users?.find(u => u.id === userId)?.full_name || ''),
         contact_info: contactInfo,
@@ -113,29 +111,59 @@ export function ApiTokensTab() {
         is_active: true
       };
 
-      const { data, error } = await supabase
-        .from('api_tokens')
-        .insert(payload)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      if (editingTokenId) {
+        const { data, error } = await supabase
+          .from('api_tokens')
+          .update(payload)
+          .eq('id', editingTokenId)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      } else {
+        const tokenHash = 'tk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const { data, error } = await supabase
+          .from('api_tokens')
+          .insert({ ...payload, token_hash: tokenHash })
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      }
     },
     onSuccess: () => {
-      toast({ title: 'Token Gerado', description: 'A chave da API foi criada com sucesso.' });
+      toast({ 
+        title: editingTokenId ? 'Acesso Atualizado' : 'Token Gerado', 
+        description: editingTokenId ? 'As permissões foram sincronizadas.' : 'A chave da API foi criada com sucesso.' 
+      });
       queryClient.invalidateQueries({ queryKey: ['admin-api-tokens'] });
-      setUserId('external');
-      setClientName('');
-      setContactInfo('');
-      setLabel('');
-      setSelectedApis([]);
-      setIsCreating(false);
+      resetForm();
     },
     onError: (error: any) => {
-      toast({ title: 'Erro', description: error.message || 'Falha ao criar token.', variant: 'destructive' });
+      toast({ title: 'Erro', description: error.message || 'Falha na operação.', variant: 'destructive' });
     }
   });
+
+  const resetForm = () => {
+    setUserId('external');
+    setClientName('');
+    setContactInfo('');
+    setLabel('');
+    setSelectedApis([]);
+    setEditingTokenId(null);
+    setIsCreating(false);
+  };
+
+  const handleEdit = (token: any) => {
+    setEditingTokenId(token.id);
+    setUserId(token.user_id || 'external');
+    setClientName(token.client_name || '');
+    setContactInfo(token.contact_info || '');
+    setLabel(token.label || '');
+    setDailyLimit(token.daily_limit || 100);
+    setSelectedApis(token.allowed_apis || []);
+    setIsCreating(true);
+  };
 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string, is_active: boolean }) => {
@@ -193,9 +221,12 @@ export function ApiTokensTab() {
       <Card className="border-primary/20 shadow-xl overflow-hidden">
         <div className="h-2 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500" />
         <CardHeader>
-          <CardTitle className="text-xl flex items-center gap-2">
-            <Key className="h-5 w-5 text-orange-600" />
-            Vender Acesso APIs (Proxy Externo)
+          <CardTitle className="text-xl flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-orange-600" />
+              {editingTokenId ? 'Editar Acesso API' : 'Vender Acesso APIs (Proxy Externo)'}
+            </div>
+            {editingTokenId && <Badge className="bg-orange-100 text-orange-600 border-none font-black text-[9px] uppercase">Modo Edição</Badge>}
           </CardTitle>
           <CardDescription>
             Gerencie chaves de acesso para clientes externos. Você pode escolher exatamente quais APIs eles podem consultar.
@@ -310,14 +341,14 @@ export function ApiTokensTab() {
 
               <div className="flex gap-2 pt-4 border-t">
                 <Button 
-                  onClick={() => generateTokenMutation.mutate()} 
-                  disabled={generateTokenMutation.isPending} 
+                  onClick={() => upsertTokenMutation.mutate()} 
+                  disabled={upsertTokenMutation.isPending} 
                   className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-11 px-8"
                 >
                   <ShieldCheck className="mr-2 h-4 w-4" />
-                  {generateTokenMutation.isPending ? 'Gravando...' : 'GERAR CHAVE DE ACESSO'}
+                  {upsertTokenMutation.isPending ? 'Gravando...' : (editingTokenId ? 'SALVAR ALTERAÇÕES' : 'GERAR CHAVE DE ACESSO')}
                 </Button>
-                <Button variant="ghost" className="h-11" onClick={() => setIsCreating(false)}>
+                <Button variant="ghost" className="h-11" onClick={resetForm}>
                   Cancelar
                 </Button>
               </div>
@@ -428,6 +459,15 @@ export function ApiTokensTab() {
                             title="Copiar URL do Proxy"
                           >
                             <Globe className="h-4 w-4 text-orange-600" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-blue-600 bg-blue-50 hover:bg-blue-100"
+                            onClick={() => handleEdit(token)}
+                            title="Editar Módulos e Limites"
+                          >
+                            <Pencil className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
