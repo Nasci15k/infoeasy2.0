@@ -128,9 +128,16 @@ export function ProfileTab() {
                     <Send className="h-3 w-3 text-blue-600" />
                   </div>
                 </div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">
-                  Obtenha seu ID enviando /id para o nosso bot.
-                </p>
+                <div className="flex flex-col gap-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                   <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                      <Zap className="h-3 w-3 text-blue-600" /> Como obter seu ID?
+                   </p>
+                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+                      1. Abra o nosso robô no Telegram.<br/>
+                      2. Envie o comando <code>/id</code>.<br/>
+                      3. Copie o número recebido e cole acima.
+                   </p>
+                </div>
               </div>
             </div>
 

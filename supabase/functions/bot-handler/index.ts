@@ -484,8 +484,17 @@ async function tgSendPhoto(token: string, chatId: number | string, photo: string
 
 
 function mention_html(id: number, name: string): string {
-  const safe = name.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m] || m));
-  return `<a href="tg://user?id=${id}">${safe}</a>`;
+  return `<a href="tg://user?id=${id}">${escapeHtml(name)}</a>`;
+}
+
+function escapeHtml(text: string): string {
+  if (!text) return '';
+  return text.toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 
@@ -541,22 +550,27 @@ async function buildForceJoinMessage() {
 // Mapeamento Global de Tipos de Consulta
 // ──────────────────────────────────────────────
 async function buildCategoryMenu(supabase: ReturnType<typeof createClient>) {
-  const { data: types } = await supabase.from('api_categories').select('name, slug, icon').order('name');
+  const { data: types } = await supabase.from('api_categories').select('name, slug, icon, is_vip').order('name');
+  
+  // VIP no topo
+  const sorted = (types || []).sort((a, b) => (b.is_vip ? 1 : 0) - (a.is_vip ? 1 : 0));
+  
   const buttons: any[] = [];
-  const list = types || [];
-
-  for (let i = 0; i < list.length; i += 2) {
+  for (let i = 0; i < sorted.length; i += 2) {
+    const r1 = sorted[i];
+    const r2 = sorted[i + 1];
+    
     const row = [
-      { text: `${list[i].icon || '📁'} ${list[i].name.toUpperCase()}`, callback_data: `cat:${list[i].slug}` }
+      { text: `${r1.icon || '📁'} ${escapeHtml(r1.name.toUpperCase())}${r1.is_vip ? ' ⭐' : ''}`, callback_data: `cat:${r1.slug}` }
     ];
-    if (list[i + 1]) {
-      row.push({ text: `${list[i + 1].icon || '📁'} ${list[i + 1].name.toUpperCase()}`, callback_data: `cat:${list[i + 1].slug}` });
+    if (r2) {
+      row.push({ text: `${r2.icon || '📁'} ${escapeHtml(r2.name.toUpperCase())}${r2.is_vip ? ' ⭐' : ''}`, callback_data: `cat:${r2.slug}` });
     }
     buttons.push(row);
   }
   buttons.push([{ text: '↩️ Voltar', callback_data: 'menu:main' }]);
 
-  const text = `🪪 <b>Selecione o tipo de consulta:</b>\n<i>Toque em uma opção para ver o detalhamento.</i>`;
+  const text = `🪪 <b>Selecione o tipo de consulta:</b>\n<i>Itens com ⭐ são exclusivos para Assinantes VIP.</i>`;
   return { text, keyboard: buttons };
 }
 
@@ -594,19 +608,22 @@ async function buildApiMenu(
     return { text: `Nenhum módulo ativo para <b>${type.toUpperCase()}</b>.`, keyboard: [[{ text: '↩️ Voltar', callback_data: 'menu:consultas' }]] };
   }
 
+  // Ordenar VIPs no topo
+  const sortedApis = filtered.sort((a, b) => (b.is_vip ? 1 : 0) - (a.is_vip ? 1 : 0));
+
   const buttons: any[] = [];
-  for (let i = 0; i < filtered.length; i += 2) {
-    const r1 = filtered[i];
-    const r2 = filtered[i+1];
+  for (let i = 0; i < sortedApis.length; i += 2) {
+    const r1 = sortedApis[i];
+    const r2 = sortedApis[i+1];
     
     const row = [];
     row.push({
-      text: `📁 ${r1.name}${r1.is_vip ? ' ⭐' : ''}`,
+      text: `📁 ${escapeHtml(r1.name)}${r1.is_vip ? ' ⭐' : ''}`,
       callback_data: `query:${r1.id}:${encodeURIComponent(queryValue).substring(0, 50)}`
     });
     if (r2) {
       row.push({
-        text: `📁 ${r2.name}${r2.is_vip ? ' ⭐' : ''}`,
+        text: `📁 ${escapeHtml(r2.name)}${r2.is_vip ? ' ⭐' : ''}`,
         callback_data: `query:${r2.id}:${encodeURIComponent(queryValue).substring(0, 50)}`
       });
     }
@@ -663,134 +680,146 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
     const msgId = cb.message?.message_id;
     const data = cb.data || '';
 
-    // Botão Apagar
-    if (data.startsWith('delete:')) {
-      const ownerId = data.split(':')[1];
-      if (String(userId) !== ownerId) {
-        await tgAnswer(tgToken, cb.id, '⚠️ Apenas o proprietário pode apagar.', true);
-        return;
-      }
-      await tgDelete(tgToken, chatId, msgId!);
-      return;
-    }
+    try {
+      // Sempre responder ao callback para parar o spinner de carregamento
+      await tgAnswer(tgToken, cb.id);
 
-    await tgAnswer(tgToken, cb.id);
-
-    if (data === 'menu:main') {
-      const { text, keyboard } = await buildMainMenu(cb.from.first_name);
-      await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
-      return;
-    }
-
-    if (data === 'menu:consultas') {
-      const { text, keyboard } = await buildCategoryMenu(supabase);
-      await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
-      return;
-    }
-
-    if (data === 'menu:planos') {
-      const { text, keyboard } = await buildPlansMenu(siteUrl);
-      await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
-      return;
-    }
-
-    if (data.startsWith('cat:')) {
-      const type = data.split(':')[1];
-      
-      // VIP CHECK for Category
-      const { data: cat } = await supabase.from('api_categories').select('is_vip, name').eq('slug', type).single();
-      if (cat?.is_vip) {
-        const { data: prof } = await supabase.from('profiles').select('telegram_expires_at').eq('telegram_id', String(userId)).maybeSingle();
-        const isVip = prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > new Date();
-        
-        if (!isVip) {
-          const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
-          await tgEdit(tgToken, chatId, msgId, `⭐ <b>CONTEÚDO VIP</b>\n\nA categoria <b>${cat.name}</b> é exclusiva para assinantes VIP.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+      // Botão Apagar
+      if (data.startsWith('delete:')) {
+        const ownerId = data.split(':')[1];
+        if (String(userId) !== ownerId) {
+          await tgAnswer(tgToken, cb.id, '⚠️ Apenas o proprietário pode apagar.', true);
           return;
         }
-      }
-
-      const { text, keyboard } = await buildInstructionPage(type);
-      await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
-      return;
-    }
-
-    if (data.startsWith('query:')) {
-      const parts = data.split(':');
-      const apiId = parts[1];
-      const queryValue = decodeURIComponent(parts.slice(2).join(':'));
-
-      // VIP CHECK for API
-      const { data: api } = await supabase.from('apis').select('is_vip, name').eq('id', apiId).single();
-      if (api?.is_vip) {
-        const { data: prof } = await supabase.from('profiles').select('telegram_expires_at').eq('telegram_id', String(userId)).maybeSingle();
-        const isVip = prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > new Date();
-        
-        if (!isVip) {
-          const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
-          await tgEdit(tgToken, chatId, msgId, `⭐ <b>MÓDULO VIP</b>\n\nO módulo <b>${api.name}</b> é restrito a assinantes.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
-          return;
-        }
-      }
-
-      await tgEdit(tgToken, chatId, msgId!, `⏳ <b>Consultando...</b>\n<i>Processando sua solicitação nas bases de inteligência.</i>`);
-      const result = await doQuery(apiId, queryValue, supabase, cfg);
-
-      if (!result.success || !result.data) {
-        await tgEdit(tgToken, chatId, msgId!, `⚠️ <b>ERRO NA CONSULTA</b>\n\n${result.message || 'Dados não encontrados.'}`, {
-          reply_markup: { inline_keyboard: [[{ text: '🗑️ Apagar', callback_data: `delete:${userId}` }, { text: '🔙 Menu', callback_data: 'menu:main' }]] }
-        });
+        await tgDelete(tgToken, chatId, msgId!);
         return;
       }
 
-      const userObj = { id: userId, name: cb.from.first_name };
-      let formatted = formatProfessionalResponse(result.data, result.apiName!, queryValue, userObj, botHandle);
-      const isHeavy = result.apiName?.toLowerCase().includes('isk') || formatted.length > 3000;
-      const inline_keyboard: any[][] = [];
-
-      if (isHeavy) {
-        const shareToken = await createShareLink(result.apiName!, queryValue, result.data, siteUrl, 'telegram', supabase);
-        const shortUrl = `${siteUrl}/share/${shareToken}`;
-        inline_keyboard.push([{ text: '🌐 Ver Resultado Completo (Web)', url: shortUrl }]);
-
-        formatted = `🔍 <b>DOSSIÊ DE INTELIGÊNCIA</b>\n` +
-          `━━━━━━━━━━━━━━━━━━━━━\n` +
-          `📌 <b>Módulo:</b> <code>${result.apiName}</code>\n` +
-          `🔎 <b>Consulta:</b> <code>${queryValue}</code>\n` +
-          `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `📦 <b>RESULTADO DISPONÍVEL NO SITE</b>\n\n` +
-          `Este módulo contém um volume alto de dados. O resultado completo foi gerado no link abaixo.\n\n` +
-          `⏱ <i>O link expira em 15 minutos!</i>\n` +
-          `━━━━━━━━━━━━━━━━━━━━━\n` +
-          `👤 <b>Usuário:</b> ${mention_html(userId, userObj.name)}\n` +
-          `⚡ <b>Bot:</b> ${botHandle}`;
-      }
-
-      inline_keyboard.push([{ text: '🗑️ Apagar Resultado', callback_data: `delete:${userId}` }, { text: '🔄 Nova Consulta', callback_data: 'menu:main' }]);
-
-      // Photo check
-      let photoUrl: string | null = null;
-      const scan = (obj: any) => {
-        if (!obj || typeof obj !== 'object' || isHeavy) return;
-        for (const [k, v] of Object.entries(obj)) {
-          if (typeof v === 'string' && (v.startsWith('data:image') || (v.length > 500 && /^[a-zA-Z0-9+/=]+$/.test(v)))) { photoUrl = v; break; }
-          const kl = k.toLowerCase();
-          if (['foto', 'image', 'imagem', 'base64', 'avatar'].includes(kl) && typeof v === 'string') { photoUrl = v; break; }
-          if (typeof v === 'object') scan(v);
-        }
+      const isUserVip = async (uId: number) => {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('telegram_expires_at, plan_expires_at')
+          .eq('telegram_id', String(uId))
+          .maybeSingle();
+        const now = new Date();
+        const isTgVip = prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > now;
+        const isSiteVip = prof?.plan_expires_at && new Date(prof.plan_expires_at) > now;
+        return !!(isTgVip || isSiteVip);
       };
-      scan(result.data);
 
-      const sent = await (photoUrl ?
-        tgSendPhoto(tgToken, chatId, photoUrl, { caption: formatted.substring(0, 1024), parse_mode: 'HTML', reply_markup: { inline_keyboard } }) :
-        tgEdit(tgToken, chatId, msgId!, formatted.substring(0, TELEGRAM_CHAR_LIMIT), { reply_markup: { inline_keyboard } })
-      );
-
-      const resData = await sent.json();
-      if (cb.message?.chat?.type !== 'private') {
-        scheduleDelete(tgToken, chatId!, [resData.result?.message_id || msgId], 60);
+      if (data === 'menu:main') {
+        const { text, keyboard } = await buildMainMenu(cb.from.first_name);
+        await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
+        return;
       }
-      return;
+
+      if (data === 'menu:consultas') {
+        const { text, keyboard } = await buildCategoryMenu(supabase);
+        await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
+        return;
+      }
+
+      if (data === 'menu:planos') {
+        const { text, keyboard } = await buildPlansMenu(siteUrl);
+        await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
+        return;
+      }
+
+      if (data.startsWith('cat:')) {
+        const type = data.split(':')[1];
+        
+        // VIP CHECK for Category
+        const { data: cat } = await supabase.from('api_categories').select('is_vip, name').eq('slug', type).single();
+        if (cat?.is_vip) {
+          const isVip = await isUserVip(userId);
+          if (!isVip) {
+            const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
+            await tgEdit(tgToken, chatId, msgId, `⭐ <b>CONTEÚDO VIP</b>\n\nA categoria <b>${escapeHtml(cat.name)}</b> é exclusiva para assinantes VIP.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+            return;
+          }
+        }
+
+        const { text, keyboard } = await buildInstructionPage(type);
+        await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
+        return;
+      }
+
+      if (data.startsWith('query:')) {
+        const parts = data.split(':');
+        const apiId = parts[1];
+        const queryValue = decodeURIComponent(parts.slice(2).join(':'));
+
+        // VIP CHECK for API
+        const { data: api } = await supabase.from('apis').select('is_vip, name').eq('id', apiId).single();
+        if (api?.is_vip) {
+          const isVip = await isUserVip(userId);
+          if (!isVip) {
+            const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
+            await tgEdit(tgToken, chatId, msgId, `⭐ <b>MÓDULO VIP</b>\n\nO módulo <b>${escapeHtml(api.name)}</b> é restrito a assinantes.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+            return;
+          }
+        }
+
+        await tgEdit(tgToken, chatId, msgId!, `⏳ <b>Consultando...</b>\n<i>Processando sua solicitação nas bases de inteligência.</i>`);
+        const result = await doQuery(apiId, queryValue, supabase, cfg);
+
+        if (!result.success || !result.data) {
+          await tgEdit(tgToken, chatId, msgId!, `⚠️ <b>ERRO NA CONSULTA</b>\n\n${result.message || 'Dados não encontrados.'}`, {
+            reply_markup: { inline_keyboard: [[{ text: '🗑️ Apagar', callback_data: `delete:${userId}` }, { text: '🔙 Menu', callback_data: 'menu:main' }]] }
+          });
+          return;
+        }
+
+        const userObj = { id: userId, name: cb.from.first_name };
+        let formatted = formatProfessionalResponse(result.data, result.apiName!, queryValue, userObj, botHandle);
+        const isHeavy = result.apiName?.toLowerCase().includes('isk') || formatted.length > 3000;
+        const inline_keyboard: any[][] = [];
+
+        if (isHeavy) {
+          const shareToken = await createShareLink(result.apiName!, queryValue, result.data, siteUrl, 'telegram', supabase);
+          const shortUrl = `${siteUrl}/share/${shareToken}`;
+          inline_keyboard.push([{ text: '🌐 Ver Resultado Completo (Web)', url: shortUrl }]);
+
+          formatted = `🔍 <b>DOSSIÊ DE INTELIGÊNCIA</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📌 <b>Módulo:</b> <code>${escapeHtml(result.apiName || 'API')}</code>\n` +
+            `🔎 <b>Consulta:</b> <code>${escapeHtml(queryValue)}</code>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `📦 <b>RESULTADO DISPONÍVEL NO SITE</b>\n\n` +
+            `Este módulo contém um volume alto de dados. O resultado completo foi gerado no link abaixo.\n\n` +
+            `⏱ <i>O link expira em 15 minutos!</i>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `👤 <b>Usuário:</b> ${mention_html(userId, userObj.name)}\n` +
+            `⚡ <b>Bot:</b> ${botHandle}`;
+        }
+
+        inline_keyboard.push([{ text: '🗑️ Apagar Resultado', callback_data: `delete:${userId}` }, { text: '🔄 Nova Consulta', callback_data: 'menu:main' }]);
+
+        // Photo check
+        let photoUrl: string | null = null;
+        const scan = (obj: any) => {
+          if (!obj || typeof obj !== 'object' || isHeavy) return;
+          for (const [k, v] of Object.entries(obj)) {
+            if (typeof v === 'string' && (v.startsWith('data:image') || (v.length > 500 && /^[a-zA-Z0-9+/=]+$/.test(v)))) { photoUrl = v; break; }
+            const kl = k.toLowerCase();
+            if (['foto', 'image', 'imagem', 'base64', 'avatar'].includes(kl) && typeof v === 'string') { photoUrl = v; break; }
+            if (typeof v === 'object') scan(v);
+          }
+        };
+        scan(result.data);
+
+        const sent = await (photoUrl ?
+          tgSendPhoto(tgToken, chatId, photoUrl, { caption: formatted.substring(0, 1024), parse_mode: 'HTML', reply_markup: { inline_keyboard } }) :
+          tgEdit(tgToken, chatId, msgId!, formatted.substring(0, TELEGRAM_CHAR_LIMIT), { reply_markup: { inline_keyboard } })
+        );
+
+        const resData = await sent.json();
+        if (cb.message?.chat?.type !== 'private') {
+          scheduleDelete(tgToken, chatId!, [resData.result?.message_id || msgId], 60);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling callback:', error);
     }
     return;
   }
@@ -861,13 +890,20 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       const { data: targetApi } = await supabase.from('apis').select('is_vip, name').or(`slug.eq.${slug},group_name.eq.${slug}`).eq('is_active', true).limit(1).maybeSingle();
 
       if (targetCat?.is_vip || targetApi?.is_vip) {
-        const { data: prof } = await supabase.from('profiles').select('telegram_expires_at').eq('telegram_id', String(userId)).maybeSingle();
-        const isVip = prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > new Date();
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('telegram_expires_at, plan_expires_at')
+          .eq('telegram_id', String(userId))
+          .maybeSingle();
+
+        const now = new Date();
+        const isVip = (prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > now) ||
+                      (prof?.plan_expires_at && new Date(prof.plan_expires_at) > now);
         
         if (!isVip) {
           const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
           const name = targetCat?.name || targetApi?.name || slug;
-          await tgSend(tgToken, chatId, `⭐ <b>CONTEÚDO VIP</b>\n\nO acesso ao módulo <b>${name}</b> é exclusivo para assinantes VIP.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+          await tgSend(tgToken, chatId, `⭐ <b>CONTEÚDO VIP</b>\n\nO acesso ao módulo <b>${escapeHtml(name)}</b> é exclusivo para assinantes VIP.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
           return;
         }
       }

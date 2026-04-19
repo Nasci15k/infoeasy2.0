@@ -139,6 +139,31 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="consultas" className="animate-in fade-in slide-in-from-bottom-8 duration-700 space-y-10">
+             {/* Telegram Linking Alert */}
+             {!profile?.telegram_id && (profile?.plan_type && profile.plan_type !== 'FREE') && (
+               <Card className="bg-amber-50 border-amber-200 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 animate-pulse">
+                  <div className="flex items-center gap-4">
+                     <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                        <Send className="h-6 w-6 text-amber-600" />
+                     </div>
+                     <div>
+                        <h4 className="font-black uppercase italic tracking-tighter text-slate-900">Atenção Assinante!</h4>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Seu acesso ao Telegram ainda não está vinculado ao seu perfil.</p>
+                     </div>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      const tabList = document.querySelector('[role="tablist"]');
+                      const profileTab = tabList?.querySelector('[value="perfil"]') as HTMLButtonElement;
+                      profileTab?.click();
+                    }}
+                    className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl px-8 font-black uppercase text-[10px] tracking-widest italic"
+                  >
+                    Vincular Agora
+                  </Button>
+               </Card>
+             )}
+
              {/* Module Search Bar */}
              <div className="relative max-w-2xl mx-auto lg:mx-0">
                 <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
