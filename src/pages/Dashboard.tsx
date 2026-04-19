@@ -17,7 +17,9 @@ import { ApiStatusTab } from '@/components/dashboard/ApiStatusTab';
 import { WalletTab } from '@/components/dashboard/WalletTab';
 import { PlansTab } from '@/components/dashboard/PlansTab';
 import { ProductsTab } from '@/components/dashboard/ProductsTab';
+import { ProfileTab } from '@/components/dashboard/ProfileTab';
 import { TermsReminderModal } from '@/components/TermsReminderModal';
+import { User as UserIcon } from 'lucide-react';
 
 export default function Dashboard() {
   const { profile } = useAuth();
@@ -120,6 +122,7 @@ export default function Dashboard() {
               { value: 'produtos', label: 'Produtos', icon: Package },
               { value: 'planos', label: 'Planos', icon: Zap },
               { value: 'carteira', label: 'Carteira', icon: Wallet },
+              { value: 'perfil', label: 'Perfil', icon: UserIcon },
               { value: 'histórico', label: 'Histórico', icon: History, action: () => navigate('/history') },
               { value: 'status', label: 'Status', icon: Activity },
             ].map(tab => (
@@ -195,6 +198,9 @@ export default function Dashboard() {
           </TabsContent>
           <TabsContent value="status" className="animate-in fade-in slide-in-from-bottom-6 duration-700">
              <ApiStatusTab />
+          </TabsContent>
+          <TabsContent value="perfil" className="animate-in fade-in slide-in-from-bottom-6 duration-700">
+             <ProfileTab />
           </TabsContent>
         </Tabs>
       </main>

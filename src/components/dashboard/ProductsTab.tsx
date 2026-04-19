@@ -123,40 +123,13 @@ function DatabasesSection() {
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
   const [pixData, setPixData] = useState<any>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-
-  const { data: databases, isLoading } = useQuery({
-    queryKey: ['available-databases'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('databases')
-        .select('*')
-        .eq('product_type', 'database')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: purchased } = useQuery({
-    queryKey: ['purchased-databases', profile?.id],
-    queryFn: async () => {
-      if (!profile?.id) return [];
-      const { data, error } = await supabase
-        .from('purchased_databases')
-        .select('database_id')
-        .eq('user_id', profile?.id);
-      if (error) throw error;
-      return data.map((p) => p.database_id);
-    },
-    enabled: !!profile?.id,
-  });
 
   const handlePurchase = async (databaseId: string) => {
     setLoading(databaseId);
     try {
-      const { data, error } = await supabase.functions.invoke('c7-create-payment', {
+      const { data, error } = await supabase.functions.invoke('miuse-create-payment', {
         body: { type: 'database', dbId: databaseId },
       });
       if (error) throw new Error(error.message);
@@ -166,6 +139,26 @@ function DatabasesSection() {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(null);
+    }
+  };
+
+  const checkStatus = async () => {
+    if (!pixData?.miuse_id || isVerifying) return;
+    setIsVerifying(true);
+    try {
+      const { data } = await supabase.functions.invoke('miuse-check-payment', {
+        body: { payment_id: pixData.miuse_id }
+      });
+      if (data?.success && data?.status === 'paid') {
+        toast({ title: 'Sucesso!', description: 'Pagamento confirmado! Base desbloqueada.' });
+        window.location.reload(); 
+      } else {
+        toast({ title: 'Aguardando...', description: 'Pagamento não identificado.' });
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -183,8 +176,6 @@ function DatabasesSection() {
     );
 
   if (pixData) {
-    const qrCode = pixData.qrCodeBase64 || pixData.pixQrCode || pixData.qr_code_url;
-    const pixCode = pixData.pixCopiaECola || pixData.copia_e_cola || pixData.emv;
     return (
       <div className="max-w-md mx-auto space-y-10 p-12 bg-white border border-slate-100 shadow-card rounded-[3rem] text-center animate-in zoom-in-95 duration-500">
         <div>
@@ -195,23 +186,33 @@ function DatabasesSection() {
             Acesso vitalício à base de dados selecionada
           </p>
         </div>
-        {qrCode && (
-          <div className="bg-white p-8 rounded-[2rem] mx-auto w-fit shadow-lg border border-slate-100">
-            <img src={qrCode} alt="QR Code" className="w-64 h-64" />
-          </div>
-        )}
+        <div className="bg-white p-8 rounded-[2rem] mx-auto w-fit shadow-lg border border-slate-100">
+          <img 
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.pix_code)}`} 
+            alt="QR Code" 
+            className="w-64 h-64" 
+          />
+        </div>
         <div className="space-y-4">
-          {pixCode && (
-            <Button
-              onClick={() => {
-                navigator.clipboard.writeText(pixCode);
-                toast({ title: 'Copiado!', description: 'Código Pix copiado com sucesso.' });
-              }}
-              className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest gap-2 shadow-xl shadow-blue-500/20"
-            >
-              Copiar Pix (Copia e Cola)
-            </Button>
-          )}
+          <Button
+            onClick={() => {
+              navigator.clipboard.writeText(pixData.pix_code);
+              toast({ title: 'Copiado!', description: 'Código Pix copiado com sucesso.' });
+            }}
+            className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest gap-2 shadow-xl shadow-blue-500/20"
+          >
+            Copiar Pix (Copia e Cola)
+          </Button>
+
+          <Button
+            onClick={checkStatus}
+            disabled={isVerifying}
+            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest gap-2"
+          >
+            {isVerifying ? <Loader2 className="animate-spin h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+            Confirmar Pagamento
+          </Button>
+
           <Button
             variant="ghost"
             onClick={() => setPixData(null)}
@@ -343,41 +344,14 @@ function CheckersSection() {
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
   const [pixData, setPixData] = useState<any>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-
-  const { data: checkers, isLoading } = useQuery({
-    queryKey: ['available-checkers'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('databases')
-        .select('*')
-        .eq('product_type', 'checker')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: purchased } = useQuery({
-    queryKey: ['purchased-checkers', profile?.id],
-    queryFn: async () => {
-      if (!profile?.id) return [];
-      const { data, error } = await supabase
-        .from('purchased_databases')
-        .select('database_id')
-        .eq('user_id', profile?.id);
-      if (error) throw error;
-      return data.map((p) => p.database_id);
-    },
-    enabled: !!profile?.id,
-  });
 
   const handlePurchase = async (checkerId: string) => {
     setLoading(checkerId);
     try {
-      const { data, error } = await supabase.functions.invoke('c7-create-payment', {
-        body: { type: 'database', dbId: checkerId },
+      const { data, error } = await supabase.functions.invoke('miuse-create-payment', {
+        body: { type: 'checker', dbId: checkerId },
       });
       if (error) throw new Error(error.message);
       if (!data?.success) throw new Error(data?.error || 'Falha ao gerar pagamento');
@@ -386,6 +360,26 @@ function CheckersSection() {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     } finally {
       setLoading(null);
+    }
+  };
+
+  const checkStatus = async () => {
+    if (!pixData?.miuse_id || isVerifying) return;
+    setIsVerifying(true);
+    try {
+      const { data } = await supabase.functions.invoke('miuse-check-payment', {
+        body: { payment_id: pixData.miuse_id }
+      });
+      if (data?.success && data?.status === 'paid') {
+        toast({ title: 'Sucesso!', description: 'Pagamento confirmado! Módulo ativado.' });
+        window.location.reload(); 
+      } else {
+        toast({ title: 'Aguardando...', description: 'Pagamento não identificado.' });
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -403,8 +397,6 @@ function CheckersSection() {
     );
 
   if (pixData) {
-    const qrCode = pixData.qrCodeBase64 || pixData.pixQrCode || pixData.qr_code_url;
-    const pixCode = pixData.pixCopiaECola || pixData.copia_e_cola || pixData.emv;
     return (
       <div className="max-w-md mx-auto space-y-10 p-12 bg-white border border-slate-100 shadow-card rounded-[3rem] text-center animate-in zoom-in-95 duration-500">
         <div>
@@ -415,23 +407,33 @@ function CheckersSection() {
             Acesso vitalício ao módulo de verificação
           </p>
         </div>
-        {qrCode && (
-          <div className="bg-white p-8 rounded-[2rem] mx-auto w-fit shadow-lg border border-slate-100">
-            <img src={qrCode} alt="QR Code" className="w-64 h-64" />
-          </div>
-        )}
+        <div className="bg-white p-8 rounded-[2rem] mx-auto w-fit shadow-lg border border-slate-100">
+          <img 
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.pix_code)}`} 
+            alt="QR Code" 
+            className="w-64 h-64" 
+          />
+        </div>
         <div className="space-y-4">
-          {pixCode && (
-            <Button
-              onClick={() => {
-                navigator.clipboard.writeText(pixCode);
-                toast({ title: 'Copiado!', description: 'Código Pix copiado com sucesso.' });
-              }}
-              className="w-full h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest gap-2 shadow-xl shadow-indigo-500/20"
-            >
-              Copiar Pix (Copia e Cola)
-            </Button>
-          )}
+          <Button
+            onClick={() => {
+              navigator.clipboard.writeText(pixData.pix_code);
+              toast({ title: 'Copiado!', description: 'Código Pix copiado com sucesso.' });
+            }}
+            className="w-full h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest gap-2 shadow-xl shadow-indigo-500/20"
+          >
+            Copiar Pix (Copia e Cola)
+          </Button>
+
+          <Button
+            onClick={checkStatus}
+            disabled={isVerifying}
+            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest gap-2"
+          >
+            {isVerifying ? <Loader2 className="animate-spin h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+            Confirmar Ativação
+          </Button>
+
           <Button
             variant="ghost"
             onClick={() => setPixData(null)}

@@ -141,7 +141,7 @@ serve(async (req) => {
     const cfg: Record<string, string> = {};
     settings?.forEach((s: any) => { cfg[s.key] = s.value; });
 
-    const TOKEN_PANEL = cfg['external_api_token'] || "PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk";
+    const TOKEN_PANEL = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
     const BASE_URL_PANEL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
     const TOKEN_DUALITY = "DUALITY-FREE";
 
@@ -326,16 +326,21 @@ serve(async (req) => {
 
     // Desembrulhar campos wrapper comuns (TConect, panel, etc.)
     // TConect tipicamente retorna: { status: true, data: { ...dados reais... } }
+    // Desembrulhar campos wrapper comuns (TConect, panel, etc.)
     const unwrapped =
-      (responseData.data !== undefined && responseData.data !== null && typeof responseData.data === 'object')
-        ? responseData.data
-        : (responseData.retorno !== undefined && responseData.retorno !== null && typeof responseData.retorno === 'object')
-          ? responseData.retorno
-          : (responseData.resultado !== undefined && responseData.resultado !== null && typeof responseData.resultado === 'object')
-            ? responseData.resultado
-            : (responseData.response !== undefined && responseData.response !== null && typeof responseData.response === 'object')
-              ? responseData.response
-              : responseData;
+      (responseData.resultado !== undefined && responseData.resultado !== null && typeof responseData.resultado === 'object')
+        ? responseData.resultado
+        : (responseData.RESULTADOS !== undefined && responseData.RESULTADOS !== null && typeof responseData.RESULTADOS === 'object')
+          ? responseData.RESULTADOS
+          : (responseData.data !== undefined && responseData.data !== null && typeof responseData.data === 'object')
+            ? responseData.data
+            : (responseData.dados !== undefined && responseData.dados !== null && typeof responseData.dados === 'object')
+              ? responseData.dados
+              : (responseData.retorno !== undefined && responseData.retorno !== null && typeof responseData.retorno === 'object')
+                ? responseData.retorno
+                : (responseData.response !== undefined && responseData.response !== null && typeof responseData.response === 'object')
+                  ? responseData.response
+                  : responseData;
 
     const cleanData = sanitizeData(unwrapped);
 

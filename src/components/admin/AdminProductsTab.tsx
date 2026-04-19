@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, Database, Loader2, Image as ImageIcon, Terminal, ShieldCheck, Box } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, Pencil, Trash2, Database, Loader2, Image as ImageIcon, Terminal, ShieldCheck, Box, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -30,6 +31,7 @@ export function AdminProductsTab() {
     is_active: true,
     description: '',
     icon: '',
+    is_vip: false,
   });
 
   const { data: categories } = useQuery({
@@ -81,7 +83,7 @@ export function AdminProductsTab() {
   });
 
   const resetApiForm = () => {
-    setApiForm({ name: '', endpoint: '', slug: '', group_name: '', category_id: '', price_vip: 0, is_active: true, description: '', icon: '' });
+    setApiForm({ name: '', endpoint: '', slug: '', group_name: '', category_id: '', price_vip: 0, is_active: true, description: '', icon: '', is_vip: false });
     setEditingApiId(null);
   };
 
@@ -96,6 +98,7 @@ export function AdminProductsTab() {
       is_active: api.is_active !== false,
       description: api.description || '',
       icon: api.icon || '',
+      is_vip: api.is_vip || false,
     });
     setEditingApiId(api.id);
     setIsApiOpen(true);
@@ -257,6 +260,19 @@ export function AdminProductsTab() {
                       </Select>
                     </div>
                   </div>
+                  <div className="flex items-center justify-between p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                    <div className="flex items-center gap-3">
+                       <Zap className="h-5 w-5 text-orange-600" />
+                       <div>
+                          <p className="text-xs font-black uppercase text-slate-900 tracking-tight leading-none">Módulo VIP (Bot)</p>
+                          <p className="text-[9px] font-bold text-slate-500 mt-1 uppercase">Exigir assinatura VIP no Telegram</p>
+                       </div>
+                    </div>
+                    <Switch 
+                      checked={(apiForm as any).is_vip} 
+                      onCheckedChange={(v) => setApiForm({...apiForm, is_vip: v} as any)} 
+                    />
+                  </div>
                   <Button onClick={() => upsertApiMutation.mutate(apiForm)} disabled={upsertApiMutation.isPending} className="w-full bg-orange-600 hover:bg-orange-700 text-white h-12 rounded-xl font-black uppercase tracking-widest mt-4">
                     {upsertApiMutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : 'Salvar Módulo'}
                   </Button>
@@ -282,6 +298,7 @@ export function AdminProductsTab() {
                       <div className="flex items-center gap-2">
                         <div className="font-bold text-slate-800">{api.name}</div>
                         {!api.is_active && <Badge className="bg-rose-100 text-rose-600 border-none text-[8px]">OFFLINE</Badge>}
+                        {api.is_vip && <Badge className="bg-orange-100 text-orange-600 border-none text-[8px] flex gap-1">⭐ VIP</Badge>}
                       </div>
                       <Badge variant="outline" className="text-[9px] mt-1 uppercase bg-slate-100">{api.slug || 'SEM SLUG'}</Badge>
                     </TableCell>

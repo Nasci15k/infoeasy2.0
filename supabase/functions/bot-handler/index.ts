@@ -156,6 +156,73 @@ function formatProfessionalResponse(data: any, apiName: string, queryValue: stri
   return text;
 }
 
+function formatProfessionalResponseDiscord(data: any, apiName: string, queryValue: string, user: { id: string, name: string }, botHandle: string = 'InfoEasy Bot'): string {
+  let text = `## 🔍 DOSSIÊ DE INTELIGÊNCIA\n`;
+  text += `> **Módulo:** \`${apiName}\`\n`;
+  text += `> **Consulta:** \`${queryValue}\`\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+
+  const sections: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (key.startsWith('_')) continue;
+    const emoji = getCategoryEmoji(key);
+    if (!sections[emoji]) sections[emoji] = [];
+    sections[emoji].push({ key, value });
+  }
+
+  // Helper para converter JSON em texto Markdown (limitado por profundidade)
+  const jsonToDiscordMd = (obj: any, depth = 0): string => {
+    if (depth > 4) return '';
+    if (!obj || typeof obj !== 'object') return String(obj);
+    let md = '';
+    const indent = '  '.repeat(depth);
+    
+    if (Array.isArray(obj)) {
+      obj.slice(0, 5).forEach((item, i) => {
+        md += `\n${indent}**#${i + 1}**`;
+        md += jsonToDiscordMd(item, depth + 1);
+      });
+      return md;
+    }
+
+    for (const [key, value] of Object.entries(obj)) {
+      const k = key.toLowerCase();
+      const isInternal = EXACT_INTERNAL.includes(k) || BLACKLIST_INTERNAL.some(b => k === b || (b.length > 5 && k.includes(b)));
+      if (isInternal) continue;
+      
+      if (typeof value === 'object' && value !== null) {
+        const nested = jsonToDiscordMd(value, depth + 1);
+        if (nested.trim()) md += `\n${indent}▸ **${formatFieldName(key)}**: ${nested}`;
+      } else {
+        md += `\n${indent}• **${formatFieldName(key)}**: \`${renderValue(value)}\``;
+      }
+    }
+    return md;
+  };
+
+  for (const [emoji, items] of Object.entries(sections)) {
+    const sectionBody = items
+      .map((item: any) => jsonToDiscordMd({ [item.key]: item.value }, 0))
+      .join('').trim();
+
+    if (sectionBody) {
+      const firstKey = items[0].key.toLowerCase();
+      const currentModule = apiName.toLowerCase().replace(/\s/g, '');
+      const sectionName = (items.length === 1 && (firstKey.includes(currentModule) || currentModule.includes(firstKey)))
+        ? 'DADOS ENCONTRADOS'
+        : formatFieldName(items[0].key).toUpperCase();
+
+      text += `\n${emoji} **${sectionName}**\n${sectionBody}\n`;
+    }
+  }
+
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `👤 **Usuário:** <@${user.id}>\n`;
+  text += `⚡ **Bot:** ${botHandle}`;
+
+  return text;
+}
+
 
 // ──────────────────────────────────────────────
 // Lógica de consulta (sem autenticação de usuário)
@@ -168,12 +235,15 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
   const encodedValue = encodeURIComponent(queryValue);
   let apiUrl = '';
 
-  const TOKEN_PANEL = cfg['external_api_token'] || "PvhdVpk8zw4PRjIyzpUlpS2ztYB54FmdxWtxTSJAjyk";
-  const BASE_URL_PANEL = cfg['external_api_url'] || "http://45.190.208.48:7070/consulta";
+  const TOKEN_PANEL = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
+  const BASE_URL_PANEL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
 
   if (endpointStore.startsWith('panel:')) {
     const modulo = endpointStore.split(':')[1];
     apiUrl = `${BASE_URL_PANEL}?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
+  } else if (endpointStore.startsWith('brasilpro:')) {
+    const param = endpointStore.split(':')[1];
+    apiUrl = `http://apisbrasilpro.site/api/busca_${param}.php?${param}=${encodedValue}`;
   } else if (endpointStore.startsWith('tconect:')) {
     let path = endpointStore.substring(8);
     const tconectToken = cfg['tconect_api_token'] || "PNSAPIS";
@@ -526,20 +596,24 @@ async function buildApiMenu(
 
   const buttons: any[] = [];
   for (let i = 0; i < filtered.length; i += 2) {
+    const r1 = filtered[i];
+    const r2 = filtered[i+1];
+    
     const row = [];
     row.push({
-      text: `📁 ${filtered[i].name}`,
-      callback_data: `query:${filtered[i].id}:${encodeURIComponent(queryValue).substring(0, 50)}`
+      text: `📁 ${r1.name}${r1.is_vip ? ' ⭐' : ''}`,
+      callback_data: `query:${r1.id}:${encodeURIComponent(queryValue).substring(0, 50)}`
     });
-    if (filtered[i + 1]) {
+    if (r2) {
       row.push({
-        text: `📁 ${filtered[i + 1].name}`,
-        callback_data: `query:${filtered[i + 1].id}:${encodeURIComponent(queryValue).substring(0, 50)}`
+        text: `📁 ${r2.name}${r2.is_vip ? ' ⭐' : ''}`,
+        callback_data: `query:${r2.id}:${encodeURIComponent(queryValue).substring(0, 50)}`
       });
     }
     buttons.push(row);
   }
 
+  buttons.push([{ text: '🛒 Ver Planos VIP', callback_data: 'menu:planos' }]);
   buttons.push([{ text: '❌ Cancelar', callback_data: 'menu:main' }]);
 
   const text =
@@ -614,8 +688,28 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       return;
     }
 
+    if (data === 'menu:planos') {
+      const { text, keyboard } = await buildPlansMenu(siteUrl);
+      await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
+      return;
+    }
+
     if (data.startsWith('cat:')) {
       const type = data.split(':')[1];
+      
+      // VIP CHECK for Category
+      const { data: cat } = await supabase.from('api_categories').select('is_vip, name').eq('slug', type).single();
+      if (cat?.is_vip) {
+        const { data: prof } = await supabase.from('profiles').select('telegram_expires_at').eq('telegram_id', String(userId)).maybeSingle();
+        const isVip = prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > new Date();
+        
+        if (!isVip) {
+          const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
+          await tgEdit(tgToken, chatId, msgId, `⭐ <b>CONTEÚDO VIP</b>\n\nA categoria <b>${cat.name}</b> é exclusiva para assinantes VIP.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+          return;
+        }
+      }
+
       const { text, keyboard } = await buildInstructionPage(type);
       await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
       return;
@@ -625,6 +719,19 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       const parts = data.split(':');
       const apiId = parts[1];
       const queryValue = decodeURIComponent(parts.slice(2).join(':'));
+
+      // VIP CHECK for API
+      const { data: api } = await supabase.from('apis').select('is_vip, name').eq('id', apiId).single();
+      if (api?.is_vip) {
+        const { data: prof } = await supabase.from('profiles').select('telegram_expires_at').eq('telegram_id', String(userId)).maybeSingle();
+        const isVip = prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > new Date();
+        
+        if (!isVip) {
+          const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
+          await tgEdit(tgToken, chatId, msgId, `⭐ <b>MÓDULO VIP</b>\n\nO módulo <b>${api.name}</b> é restrito a assinantes.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+          return;
+        }
+      }
 
       await tgEdit(tgToken, chatId, msgId!, `⏳ <b>Consultando...</b>\n<i>Processando sua solicitação nas bases de inteligência.</i>`);
       const result = await doQuery(apiId, queryValue, supabase, cfg);
@@ -697,16 +804,28 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
 
   if (lower === '/start' || lower === '/menu') {
     const { text: mText, keyboard } = await buildMainMenu(firstName);
-    await tgSend(tgToken, chatId, mText, { reply_markup: { inline_keyboard: keyboard } });
+    const welcomeText = mText + `\n\n🆔 <b>Seu ID:</b> <code>${userId}</code> (Copie e vincule no site)`;
+    await tgSend(tgToken, chatId, welcomeText, { reply_markup: { inline_keyboard: keyboard } });
+    return;
+  }
+
+  if (lower === '/id') {
+    await tgSend(tgToken, chatId, `🆔 <b>SEU ID DO TELEGRAM</b>\n\n<code>${userId}</code>\n\nCopie este número e cole na aba <b>Perfil</b> no site para vincular sua conta e ativar seu VIP!`);
+    return;
+  }
+
+  if (lower === '/planos') {
+    const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
+    await tgSend(tgToken, chatId, pText, { reply_markup: { inline_keyboard: pKb } });
     return;
   }
 
   if (lower === '/comandos') {
-    const { data: cats } = await supabase.from('api_categories').select('name, slug, icon').order('name');
+    const { data: cats } = await supabase.from('api_categories').select('name, slug, icon, is_vip').order('name');
     let cmdList = `📜 <b>LISTA DE COMANDOS — INFOEASY</b>\n━━━━━━━━━━━━━━━━━\n\n`;
-    cats?.forEach((c: any) => { cmdList += `${c.icon || '🔍'} <code>/${c.slug} [valor]</code>\n`; });
-    cmdList += `\n💡 <i>Exemplo: /cpf 12345678901</i>\n✅ Mais de 60 APIs integradas!`;
-    await tgSend(tgToken, chatId, cmdList, { reply_markup: { inline_keyboard: [[{ text: '🪪 Abrir Painel', callback_data: 'menu:main' }]] } });
+    cats?.forEach((c: any) => { cmdList += `${c.icon || '🔍'} <code>/${c.slug} [valor]</code>${c.is_vip ? ' ⭐' : ''}\n`; });
+    cmdList += `\n💡 <i>Exemplo: /cpf 12345678901</i>\n✅ Módulos com ⭐ são exclusivos VIP!`;
+    await tgSend(tgToken, chatId, cmdList, { reply_markup: { inline_keyboard: [[{ text: '🪪 Abrir Painel', callback_data: 'menu:main' }, { text: '🛒 Assinar VIP', callback_data: 'menu:planos' }]] } });
     return;
   }
 
@@ -736,6 +855,23 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
         await tgSend(tgToken, chatId, iText, { reply_markup: { inline_keyboard: iKb } });
         return;
       }
+
+      // VIP CHECK for direct command slug
+      const { data: targetCat } = await supabase.from('api_categories').select('is_vip, name').eq('slug', slug).maybeSingle();
+      const { data: targetApi } = await supabase.from('apis').select('is_vip, name').or(`slug.eq.${slug},group_name.eq.${slug}`).eq('is_active', true).limit(1).maybeSingle();
+
+      if (targetCat?.is_vip || targetApi?.is_vip) {
+        const { data: prof } = await supabase.from('profiles').select('telegram_expires_at').eq('telegram_id', String(userId)).maybeSingle();
+        const isVip = prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > new Date();
+        
+        if (!isVip) {
+          const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
+          const name = targetCat?.name || targetApi?.name || slug;
+          await tgSend(tgToken, chatId, `⭐ <b>CONTEÚDO VIP</b>\n\nO acesso ao módulo <b>${name}</b> é exclusivo para assinantes VIP.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+          return;
+        }
+      }
+
       const { text: aText, keyboard: aKb } = await buildApiMenu(slug, val, supabase);
       const res = await tgSend(tgToken, chatId, aText, { reply_markup: { inline_keyboard: aKb } });
       const resData = await res.json();
@@ -786,6 +922,132 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 // ──────────────────────────────────────────────
+// DISCORD: Módulos de Interface (Mirrors Telegram)
+// ──────────────────────────────────────────────
+
+async function buildMainMenuDiscord(firstName: string, siteUrl: string, applicationId: string) {
+  const content =
+    `## 👋 Olá, ${firstName}!\n` +
+    `**Bem-vindo ao InfoEasy Bot** 🤖\n` +
+    `Realize consultas completas com rapidez e total segurança.\n\n` +
+    `📋 **Escolha uma opção para começar:**`;
+
+  const components = [
+    {
+      type: 1,
+      components: [
+        { type: 2, style: 5, label: '➕ Adicionar em Servidor', url: `https://discord.com/api/oauth2/authorize?client_id=${applicationId}&permissions=8&scope=bot%20applications.commands` },
+        { type: 2, style: 2, label: '🪪 Consultas', custom_id: 'menu:consultas' },
+        { type: 2, style: 5, label: '📢 Canal', url: 'https://t.me/infoseasy' }
+      ]
+    },
+    {
+      type: 1,
+      components: [
+        { type: 2, style: 5, label: '🆘 Suporte', url: 'https://t.me/infoseasy' },
+        { type: 2, style: 5, label: '🌐 Site Oficial', url: siteUrl }
+      ]
+    }
+  ];
+
+  return { content, components };
+}
+
+async function buildCategoryMenuDiscord(supabase: ReturnType<typeof createClient>) {
+  const { data: types } = await supabase.from('api_categories').select('name, slug, icon').order('name');
+  const options = (types || []).map(t => ({
+    label: t.name.toUpperCase(),
+    value: `cat:${t.slug}`,
+    description: `Consultar por ${t.name}`,
+    emoji: { name: t.icon || '📁' }
+  }));
+
+  const content = `🪪 **Selecione o tipo de consulta:**\n_Escolha uma categoria abaixo para ver as instruções._`;
+  const components = [{
+    type: 1,
+    components: [{
+      type: 3,
+      custom_id: 'select_category',
+      options: options.slice(0, 25),
+      placeholder: 'Escolha uma categoria...'
+    }]
+  }];
+
+  return { content, components };
+}
+
+async function buildInstructionPageDiscord(type: string) {
+  const content =
+    `⚠️ **${type.toUpperCase()}**\n\n` +
+    `Por favor, utilize o comando de barra informando o valor para consultar:\n` +
+    `\`/${type} valor:[VALOR]\`\n\n` +
+    `**Exemplo:** \`/${type} valor:123456789\``;
+
+  const components = [{
+    type: 1,
+    components: [{ type: 2, style: 2, label: '↩️ Voltar', custom_id: 'menu:consultas' }]
+  }];
+
+  return { content, components };
+}
+
+async function buildApiMenuDiscord(
+  type: string,
+  queryValue: string,
+  supabase: ReturnType<typeof createClient>
+) {
+  const { data: cat } = await supabase.from('api_categories').select('id, name, slug').eq('slug', type).single();
+  const { data: allApis } = await supabase.from('apis').select('*').eq('is_active', true);
+
+  let filtered = [];
+  if (cat) {
+    filtered = (allApis || []).filter(a => a.category_id === cat.id);
+  } else {
+    filtered = (allApis || []).filter(a =>
+      (a.slug || '').toLowerCase() === type ||
+      (a.group_name || '').toLowerCase() === type.toLowerCase()
+    );
+  }
+
+  if (!filtered.length) {
+    return { 
+      content: `❌ Nenhum módulo ativo para **${type.toUpperCase()}**.`, 
+      components: [{ type: 1, components: [{ type: 2, style: 2, label: '↩️ Voltar', custom_id: 'menu:consultas' }] }] 
+    };
+  }
+
+  const options = filtered.slice(0, 25).map(a => ({
+    label: a.name,
+    value: `query:${a.id}:${encodeURIComponent(queryValue).substring(0, 50)}`,
+    description: `Consultar via ${a.name}`,
+    emoji: { name: '📁' }
+  }));
+
+  const content =
+    `## 📂 ${type.toUpperCase()}\n` +
+    `🔎 **Valor:** \`${queryValue}\`\n\n` +
+    `_Selecione o módulo de consulta abaixo:_`;
+
+  const components = [
+    {
+      type: 1,
+      components: [{
+        type: 3,
+        custom_id: 'select_api',
+        options,
+        placeholder: 'Selecione o módulo...'
+      }]
+    },
+    {
+      type: 1,
+      components: [{ type: 2, style: 4, label: '❌ Cancelar', custom_id: 'menu:main' }]
+    }
+  ];
+
+  return { content, components };
+}
+
+// ──────────────────────────────────────────────
 // DISCORD: handler principal
 // ──────────────────────────────────────────────
 async function handleDiscord(
@@ -800,165 +1062,129 @@ async function handleDiscord(
 
   // Verificar assinatura
   const isValid = await verifyDiscordSignature(req, bodyText, discordPublicKey);
-  if (!isValid) {
-    return new Response('Invalid signature', { status: 401 });
-  }
+  if (!isValid) return new Response('Invalid signature', { status: 401 });
 
-  const { type, data, token: interactionToken, application_id } = body;
+  const { type, data, token: interactionToken, application_id, member, user } = body;
+  const caller = member?.user || user;
+  const callerId = caller?.id;
+  const callerName = caller?.global_name || caller?.username || 'Usuário';
 
-  // Ping do Discord
-  if (type === 1) {
-    return new Response(JSON.stringify({ type: 1 }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  // 1. PING
+  if (type === 1) return new Response(JSON.stringify({ type: 1 }), { headers: { 'Content-Type': 'application/json' } });
 
-  // Slash command (type 2)
+  // Responder Helpers
+  const respond = (payload: any) => new Response(JSON.stringify({ type: 4, data: payload }), { headers: { 'Content-Type': 'application/json' } });
+  const defer = () => new Response(JSON.stringify({ type: 5 }), { headers: { 'Content-Type': 'application/json' } });
+  const update = (payload: any) => new Response(JSON.stringify({ type: 7, data: payload }), { headers: { 'Content-Type': 'application/json' } });
+
+  // 2. SLASH COMMANDS
   if (type === 2) {
-    const commandName = data?.name?.toLowerCase();
-    const optionValue = data?.options?.find((o: any) => o.name === 'valor')?.value || '';
+    const cmd = data?.name?.toLowerCase();
+    const val = data?.options?.find((o: any) => o.name === 'valor')?.value || '';
 
-    const CATEGORY_SLUGS: Record<string, string> = {
-      cpf: 'cpf', cnpj: 'cnpj', placa: 'placa', cep: 'cep',
-      telefone: 'telefone', nome: 'nome', email: 'email',
-    };
-
-    if (commandName === 'ajuda') {
-      return new Response(JSON.stringify({
-        type: 4,
-        data: {
-          content:
-            '## 🤖 InfoEasy Bot\n\n' +
-            '**Comandos disponíveis:**\n' +
-            '`/cpf` `/cnpj` `/placa` `/cep` `/telefone` `/nome` `/email`\n\n' +
-            '**Como usar:** `/cpf valor:12345678901`\n\n' +
-            `🌐 Acesse também o site: ${siteUrl}\n` +
-            '_Consultas gratuitas, 24/7, sem login._',
-          flags: 64,
-        },
-      }), { headers: { 'Content-Type': 'application/json' } });
+    if (cmd === 'start' || cmd === 'menu' || cmd === 'ajuda') {
+      const { content, components } = await buildMainMenuDiscord(callerName, siteUrl, application_id);
+      return respond({ content, components });
     }
 
-    const slug = CATEGORY_SLUGS[commandName];
-    if (!slug || !optionValue) {
-      return new Response(JSON.stringify({
-        type: 4,
-        data: { content: '❌ Comando ou valor inválido. Use `/ajuda` para ver os comandos.', flags: 64 },
-      }), { headers: { 'Content-Type': 'application/json' } });
-    }
+    // Routing universal de comandos baseados em slugs
+    const { data: cat } = await supabase.from('api_categories').select('slug').eq('slug', cmd).single();
+    const { data: apis } = await supabase.from('apis').select('slug, group_name').eq('is_active', true);
 
-    // Buscar categoria e APIs
-    const { data: cat } = await supabase
-      .from('api_categories').select('id, name').eq('slug', slug).single();
+    const isApiExists = (apis || []).some(a => (a.slug || '').toLowerCase() === cmd || (a.group_name || '').toLowerCase() === cmd);
 
-    if (!cat) {
-      return new Response(JSON.stringify({
-        type: 4,
-        data: { content: `❌ Categoria **${slug}** não encontrada.`, flags: 64 },
-      }), { headers: { 'Content-Type': 'application/json' } });
-    }
-
-    const { data: apis } = await supabase
-      .from('apis').select('id, name')
-      .eq('category_id', cat.id).eq('is_active', true).order('name');
-
-    if (!apis?.length) {
-      return new Response(JSON.stringify({
-        type: 4,
-        data: { content: `❌ Nenhum módulo ativo para **${cat.name}**.`, flags: 64 },
-      }), { headers: { 'Content-Type': 'application/json' } });
-    }
-
-    // Montar select menu (componentes Discord)
-    const options = apis.slice(0, 25).map((a: any) => ({
-      label: a.name,
-      value: `${a.id}|||${optionValue}`,
-      description: `Consultar ${cat.name} via ${a.name}`,
-      emoji: { name: '📋' },
-    }));
-
-    return new Response(JSON.stringify({
-      type: 4,
-      data: {
-        content: `## 📂 ${cat.name}\n\n**Valor:** \`${optionValue}\`\n\nEscolha o módulo de consulta:`,
-        components: [{
-          type: 1, // ActionRow
-          components: [{
-            type: 3, // SelectMenu
-            custom_id: `select_api`,
-            options,
-            placeholder: 'Selecione o módulo...',
-          }],
-        }],
-      },
-    }), { headers: { 'Content-Type': 'application/json' } });
-  }
-
-  // Component interaction (tipo 3 = select menu)
-  if (type === 3) {
-    const selected = data?.values?.[0] || '';
-    const [apiId, queryValue] = selected.split('|||');
-
-    if (!apiId || !queryValue) {
-      return new Response(JSON.stringify({
-        type: 4,
-        data: { content: '❌ Seleção inválida.', flags: 64 },
-      }), { headers: { 'Content-Type': 'application/json' } });
-    }
-
-    // Responder imediatamente com "aguarde" (deferred)
-    const deferredResponse = new Response(JSON.stringify({ type: 5 }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    // Executar consulta em background
-    (async () => {
-      // Nota: handleDiscord já recebe cfg se eu atualizar a assinatura ou buscar aqui
-      // Mas para simplificar, buscaremos cfg aqui dentro ou passaremos
-      const { data: settings } = await supabase.from('bot_settings').select('key, value');
-      const cfg: Record<string, string> = {};
-      settings?.forEach((s: any) => { cfg[s.key] = s.value; });
-
-      const result = await doQuery(apiId, queryValue, supabase, cfg);
-
-
-      let content: string;
-
-      if (!result.success || !result.data) {
-        content = `❌ **Erro:** ${result.message || 'Dados não encontrados.'}`;
-      } else {
-        const formatted = `### 🔍 ${result.apiName} — \`${queryValue}\`\n\`\`\`\n${jsonToText(result.data)}\n\`\`\``;
-        if (formatted.length <= DISCORD_CHAR_LIMIT) {
-          content = formatted;
-        } else {
-          const shareLink = await createShareLink(result.apiName!, queryValue, result.data, siteUrl, 'discord', supabase);
-          content =
-            `✅ **${result.apiName}** — \`${queryValue}\`\n\n` +
-            `📄 Resultado muito extenso. Acesse o link completo:\n${shareLink}\n\n` +
-            `⏱ _Link válido por 15 minutos_`;
-        }
+    if (cat || isApiExists) {
+      if (!val) {
+        const { content, components } = await buildInstructionPageDiscord(cmd);
+        return respond({ content, components, flags: 64 });
       }
-
-      // Editar a resposta "aguardando"
-      await fetch(
-        `https://discord.com/api/v10/webhooks/${application_id}/${interactionToken}/messages/@original`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bot ${discordToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content }),
-        }
-      );
-    })();
-
-    return deferredResponse;
+      const { content, components } = await buildApiMenuDiscord(cmd, String(val), supabase);
+      return respond({ content, components });
+    }
   }
 
-  return new Response(JSON.stringify({ type: 1 }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  // 3. COMPONENT INTERACTIONS
+  if (type === 3) {
+    const customId = data?.custom_id;
+
+    if (customId === 'menu:main') {
+      const { content, components } = await buildMainMenuDiscord(callerName, siteUrl, application_id);
+      return update({ content, components });
+    }
+
+    if (customId === 'menu:consultas' || customId === 'select_category') {
+      const selectedCat = customId === 'select_category' ? data?.values?.[0]?.replace('cat:', '') : null;
+      if (selectedCat) {
+        const { content, components } = await buildInstructionPageDiscord(selectedCat);
+        return update({ content, components });
+      }
+      const { content, components } = await buildCategoryMenuDiscord(supabase);
+      return update({ content, components });
+    }
+
+    if (customId === 'select_api') {
+      const selected = data?.values?.[0] || '';
+      const [action, apiId, queryValue] = selected.split(':'); // Note: Telegram uses query:id:val, Discord select menu passes value
+
+      // Re-fetch category/api info based on selection
+      // Wait, Discord value is what we set in buildApiMenuDiscord: `query:${a.id}:${val}`
+      if (action === 'query') {
+        const qVal = decodeURIComponent(queryValue);
+        
+        // Deferred response for long-running query
+        (async () => {
+          const { data: settings } = await supabase.from('bot_settings').select('key, value');
+          const cfg: Record<string, string> = {};
+          settings?.forEach(s => { cfg[s.key] = s.value; });
+
+          const result = await doQuery(apiId, qVal, supabase, cfg);
+          const botHandle = cfg['telegram_username'] || 'InfoEasy Bot';
+
+          let content: string;
+          if (!result.success || !result.data) {
+            content = `⚠️ **ERRO NA CONSULTA**\n\n${result.message || 'Dados não encontrados.'}`;
+          } else {
+            const userObj = { id: callerId, name: callerName };
+            const formatted = formatProfessionalResponseDiscord(result.data, result.apiName!, qVal, userObj, botHandle);
+            
+            if (formatted.length <= DISCORD_CHAR_LIMIT) {
+              content = formatted;
+            } else {
+              const shareToken = await createShareLink(result.apiName!, qVal, result.data, siteUrl, 'discord', supabase);
+              const shortUrl = `${siteUrl}/share/${shareToken}`;
+              content = 
+                `## 🔍 DOSSIÊ DE INTELIGÊNCIA\n` +
+                `━━━━━━━━━━━━━━━━━━━━━\n` +
+                `📌 **Módulo:** \`${result.apiName}\`\n` +
+                `🔎 **Consulta:** \`${qVal}\`\n` +
+                `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `📦 **RESULTADO DISPONÍVEL NO SITE**\n\n` +
+                `Este módulo contém um volume alto de dados. O resultado completo foi gerado no link abaixo.\n\n` +
+                `🔗 **Link:** ${shortUrl}\n\n` +
+                `⏱ _O link expira em 15 minutos!_\n` +
+                `━━━━━━━━━━━━━━━━━━━━━\n` +
+                `👤 **Usuário:** <@${callerId}>\n` +
+                `⚡ **Bot:** ${botHandle}`;
+            }
+          }
+
+          // Edit the deferred original message
+          await fetch(`https://discord.com/api/v10/webhooks/${application_id}/${interactionToken}/messages/@original`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bot ${discordToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              content, 
+              components: [{ type: 1, components: [{ type: 2, style: 2, label: '🔄 Nova Consulta', custom_id: 'menu:main' }] }] 
+            }),
+          });
+        })();
+
+        return update({ content: `⏳ **Consultando...**\n_Processando sua solicitação nas bases de inteligência._`, components: [] });
+      }
+    }
+  }
+
+  return respond({ content: '❌ Comando não reconhecido.', flags: 64 });
 }
 
 // ──────────────────────────────────────────────

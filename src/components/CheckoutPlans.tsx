@@ -15,26 +15,25 @@ const PLANS = [
 export function CheckoutPlans() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [pixData, setPixData] = useState<any | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
-
+ 
   const handleBuy = async (planId: string) => {
     setLoadingPlan(planId);
     try {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) throw new Error('Sessão inválida');
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/c7-create-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.session.access_token}`
-        },
-        body: JSON.stringify({ plan: planId })
+      // Mapping for legacy CheckoutPlans IDs to period
+      const period = planId === 'semanal' ? 'weekly' : 'monthly';
+      // We assume there's a default plan or we look up by id if it matches
+      
+      const { data, error } = await supabase.functions.invoke('miuse-create-payment', {
+        body: { type: 'plan', planId: planId, period: period }
       });
 
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Erro ao gerar pagamento');
+      if (error || !data.success) {
+        throw new Error(error?.message || data?.error || 'Erro ao gerar pagamento');
       }
 
       setPixData(data.payment);
@@ -46,19 +45,31 @@ export function CheckoutPlans() {
     }
   };
 
+  const checkStatus = async () => {
+    if (!pixData?.miuse_id || isVerifying) return;
+    setIsVerifying(true);
+    try {
+      const { data } = await supabase.functions.invoke('miuse-check-payment', {
+        body: { payment_id: pixData.miuse_id }
+      });
+      
+      if (data?.success && data?.status === 'paid') {
+        toast({ title: 'Sucesso!', description: 'Pagamento confirmado! Sua conta foi ativada.' });
+        window.location.reload(); 
+      } else {
+        toast({ title: 'Aguardando...', description: 'Pagamento ainda não identificado.' });
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (pixData) {
-      interval = setInterval(async () => {
-        const { data: profile } = await supabase.auth.getUser();
-        if (profile.user) {
-          const { data } = await supabase.from('profiles').select('status').eq('id', profile.user.id).single();
-          if (data && data.status === 'approved') {
-            clearInterval(interval);
-            window.location.reload();
-          }
-        }
-      }, 5000);
+      interval = setInterval(checkStatus, 10000);
     }
     return () => clearInterval(interval);
   }, [pixData]);
@@ -71,21 +82,34 @@ export function CheckoutPlans() {
           <CardDescription>Escaneie o QR Code abaixo pelo app do seu banco. A liberação é imediata!</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 flex flex-col items-center">
-          <div className="bg-white p-2 rounded-xl">
-             <img src={pixData.qrCodeBase64} alt="QR Code PIX" className="w-48 h-48" />
+          <div className="bg-white p-2 rounded-xl border-2 border-slate-100">
+             <img 
+               src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixData.pix_code)}`} 
+               alt="QR Code PIX" 
+               className="w-48 h-48" 
+             />
           </div>
-          <div className="w-full">
+          <div className="w-full space-y-3">
             <p className="text-sm text-left mb-2 font-semibold">Copia e Cola:</p>
             <textarea 
               readOnly 
               className="w-full bg-muted p-2 rounded-md text-xs font-mono h-20 resize-none" 
-              value={pixData.pixCopiaECola} 
-              onClick={(e) => { (e.target as HTMLTextAreaElement).select(); navigator.clipboard.writeText(pixData.pixCopiaECola); toast({description: 'Copiado!'})}}
+              value={pixData.pix_code} 
+              onClick={(e) => { (e.target as HTMLTextAreaElement).select(); navigator.clipboard.writeText(pixData.pix_code); toast({description: 'Copiado!'})}}
             />
+            
+            <Button 
+               onClick={checkStatus}
+               disabled={isVerifying}
+               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            >
+               {isVerifying ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
+               Já Paguei / Verificar Agora
+            </Button>
           </div>
         </CardContent>
         <CardFooter className="flex justify-center">
-           <Button variant="outline" onClick={() => setPixData(null)}>Cancelar</Button>
+           <Button variant="ghost" onClick={() => setPixData(null)}>Escolher Outro Plano</Button>
         </CardFooter>
       </Card>
     );

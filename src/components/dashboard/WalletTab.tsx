@@ -15,38 +15,25 @@ export function WalletTab() {
   const [amount, setAmount] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [pixData, setPixData] = useState<any>(null);
-
-  const { data: transactions, isLoading: loadingTx } = useQuery({
-    queryKey: ['wallet-transactions', profile?.id],
-    queryFn: async () => {
-      if (!profile?.id) return [];
-      const { data, error } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('user_id', profile?.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!profile?.id
-  });
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const handleAddCredit = async () => {
     const val = parseFloat(amount);
-    if (isNaN(val) || val < 1) {
-      toast({ title: 'Valor inválido', description: 'O mínimo para recarga é R$ 1,00', variant: 'destructive' });
+    if (isNaN(val) || val < 5) {
+      toast({ title: 'Valor inválido', description: 'O mínimo para recarga na Miuse é R$ 5,00', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('c7-create-payment', {
+      const { data, error } = await supabase.functions.invoke('miuse-create-payment', {
         body: { type: 'wallet', amount: val }
       });
 
       if (error) throw error;
-      setPixData(data);
+      if (!data?.success) throw new Error(data?.error || 'Falha ao gerar pagamento');
+      
+      setPixData(data.payment);
       toast({ title: 'Pix Gerado', description: 'Realize o pagamento para creditar seu saldo.' });
     } catch (err: any) {
       toast({ title: 'Erro ao gerar Pix', description: err.message, variant: 'destructive' });
@@ -55,9 +42,29 @@ export function WalletTab() {
     }
   };
 
+  const checkStatus = async () => {
+    if (!pixData?.miuse_id || isVerifying) return;
+    setIsVerifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('miuse-check-payment', {
+        body: { payment_id: pixData.miuse_id }
+      });
+      
+      if (data?.success && data?.status === 'paid') {
+        toast({ title: 'Sucesso!', description: 'Pagamento confirmado! Saldo creditado.' });
+        setPixData(null);
+        window.location.reload(); 
+      }
+    } catch (err: any) {
+      console.error("Check error:", err);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const copyPix = () => {
-    if (pixData?.pixCopiaECola) {
-      navigator.clipboard.writeText(pixData.pixCopiaECola);
+    if (pixData?.pix_code) {
+      navigator.clipboard.writeText(pixData.pix_code);
       toast({ title: 'Copiado!', description: 'Código Pix copiado.' });
     }
   };
@@ -127,7 +134,11 @@ export function WalletTab() {
             ) : (
               <div className="space-y-6 text-center animate-in zoom-in-95 duration-500">
                  <div className="bg-white p-5 rounded-[2rem] mx-auto w-fit shadow-2xl">
-                    <img src={pixData.pixQrCode} alt="QR Code" className="w-48 h-48" />
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pixData.pix_code)}`} 
+                      alt="QR Code" 
+                      className="w-48 h-48" 
+                    />
                  </div>
                  <div className="space-y-3">
                     <Button 
@@ -137,6 +148,16 @@ export function WalletTab() {
                     >
                        <Copy className="h-4 w-4 mr-2" /> Copiar Pix
                     </Button>
+
+                    <Button 
+                       onClick={checkStatus}
+                       disabled={isVerifying}
+                       className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest gap-2 shadow-lg"
+                    >
+                       {isVerifying ? <Loader2 className="animate-spin h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                       Verificar Pagamento
+                    </Button>
+
                     <Button 
                        variant="ghost" 
                        onClick={() => setPixData(null)}

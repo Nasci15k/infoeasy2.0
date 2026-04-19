@@ -10,6 +10,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Zap, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+
 export function ApiPlansTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -18,10 +21,12 @@ export function ApiPlansTab() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    price_weekly: 0,
-    price_monthly: 0,
-    daily_limit: 10,
-    is_active: true
+    price: 0,
+    duration_days: 30,
+    daily_limit: 100,
+    plan_type: 'site',
+    is_active: true,
+    benefits: ''
   });
 
   const { data: plans, isLoading } = useQuery({
@@ -35,11 +40,17 @@ export function ApiPlansTab() {
 
   const upsertMutation = useMutation({
     mutationFn: async (data: any) => {
+      // Process benefits from comma-separated string to array
+      const processedData = {
+        ...data,
+        benefits: data.benefits.split(',').map((s: string) => s.trim()).filter((s: string) => s !== '')
+      };
+
       if (editingId) {
-        const { error } = await supabase.from('site_plans').update(data).eq('id', editingId);
+        const { error } = await supabase.from('site_plans').update(processedData).eq('id', editingId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('site_plans').insert([data]);
+        const { error } = await supabase.from('site_plans').insert([processedData]);
         if (error) throw error;
       }
     },
@@ -66,7 +77,7 @@ export function ApiPlansTab() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', price_weekly: 0, price_monthly: 0, daily_limit: 10, is_active: true });
+    setFormData({ name: '', description: '', price: 0, duration_days: 30, daily_limit: 100, plan_type: 'site', is_active: true, benefits: '' });
     setEditingId(null);
   };
 
@@ -74,10 +85,12 @@ export function ApiPlansTab() {
     setFormData({
       name: plan.name,
       description: plan.description || '',
-      price_weekly: plan.price_weekly || 0,
-      price_monthly: plan.price_monthly || 0,
-      daily_limit: plan.daily_limit || 10,
-      is_active: plan.is_active
+      price: plan.price || 0,
+      duration_days: plan.duration_days || 30,
+      daily_limit: plan.daily_limit || 100,
+      plan_type: plan.plan_type || 'site',
+      is_active: plan.is_active,
+      benefits: Array.isArray(plan.benefits) ? plan.benefits.join(', ') : ''
     });
     setEditingId(plan.id);
     setIsOpen(true);
@@ -105,23 +118,39 @@ export function ApiPlansTab() {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Título do Plano</Label>
-                <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="bg-white/5 border-white/10 rounded-xl" placeholder="Ex: Plano Ultra" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Título do Plano</Label>
+                  <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="bg-white/5 border-white/10 rounded-xl" placeholder="Ex: Diário" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Tipo de Plano</Label>
+                  <Select value={formData.plan_type} onValueChange={v => setFormData({...formData, plan_type: v})}>
+                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-[#1C1A2E] border-white/10 text-white">
+                      <SelectItem value="site">Site + Telegram</SelectItem>
+                      <SelectItem value="telegram">Telegram VIP Apenas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Semanal (R$)</Label>
-                  <Input type="number" value={formData.price_weekly} onChange={e => setFormData({...formData, price_weekly: Number(e.target.value)})} className="bg-white/5 border-white/10 rounded-xl" />
+                  <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Preço (R$)</Label>
+                  <Input type="number" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="bg-white/5 border-white/10 rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Mensal (R$)</Label>
-                  <Input type="number" value={formData.price_monthly} onChange={e => setFormData({...formData, price_monthly: Number(e.target.value)})} className="bg-white/5 border-white/10 rounded-xl" />
+                  <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Duração (Dias)</Label>
+                  <Input type="number" value={formData.duration_days} onChange={e => setFormData({...formData, duration_days: Number(e.target.value)})} className="bg-white/5 border-white/10 rounded-xl" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Limite Diário (Consultas)</Label>
                 <Input type="number" value={formData.daily_limit} onChange={e => setFormData({...formData, daily_limit: Number(e.target.value)})} className="bg-white/5 border-white/10 rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Benefícios (Separados por vírgula)</Label>
+                <Textarea value={formData.benefits} onChange={e => setFormData({...formData, benefits: e.target.value})} className="bg-white/5 border-white/10 rounded-xl h-20 text-xs" placeholder="Consulta Foto, Suporte 24h, Filtros VIP..." />
               </div>
               <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
                 <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">Plano Ativo</span>
@@ -139,21 +168,26 @@ export function ApiPlansTab() {
         <Table>
           <TableHeader className="bg-white/[0.03]">
             <TableRow className="border-white/5">
-              <TableHead className="text-[10px] font-black uppercase text-slate-500 py-5">Nome</TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-slate-500 py-5">Limite</TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-slate-500 py-5">Semanal / Mensal</TableHead>
+              <TableHead className="text-[10px] font-black uppercase text-slate-500 py-5">Tipo / Nome</TableHead>
+              <TableHead className="text-[10px] font-black uppercase text-slate-500 py-5">Duração</TableHead>
+              <TableHead className="text-[10px] font-black uppercase text-slate-500 py-5">Valor / Limite</TableHead>
               <TableHead className="text-[10px] font-black uppercase text-slate-500 py-5 text-right">Status / Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {plans?.map((plan) => (
               <TableRow key={plan.id} className="border-white/5 hover:bg-white/[0.01]">
-                <TableCell className="font-black text-white italic">{plan.name}</TableCell>
-                <TableCell className="text-slate-400 font-bold">{plan.daily_limit} con/dia</TableCell>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full w-fit mb-1 ${plan.plan_type === 'telegram' ? 'bg-orange-500/20 text-orange-500' : 'bg-blue-500/20 text-blue-500'}`}>{plan.plan_type}</span>
+                    <span className="font-black text-white italic">{plan.name}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-slate-400 font-bold">{plan.duration_days} dias</TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-black text-emerald-400 px-2 py-0.5 bg-emerald-500/10 rounded-lg w-fit">Semanal: R$ {plan.price_weekly}</span>
-                    <span className="text-[11px] font-black text-blue-500 px-2 py-0.5 bg-blue-500/10 rounded-lg w-fit">Mensal: R$ {plan.price_monthly}</span>
+                    <span className="text-[11px] font-black text-emerald-400 px-2 py-0.5 bg-emerald-500/10 rounded-lg w-fit">R$ {plan.price}</span>
+                    <span className="text-[10px] font-bold text-slate-500">{plan.daily_limit} con/dia</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-right space-x-2">
