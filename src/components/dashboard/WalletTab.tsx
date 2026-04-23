@@ -8,7 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Wallet, Plus, CreditCard, History, Loader2, Copy, CheckCircle2, ChevronRight, TrendingUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '../ui/badge';
-
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 export function WalletTab() {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -16,6 +17,22 @@ export function WalletTab() {
   const [loading, setLoading] = useState(false);
   const [pixData, setPixData] = useState<any>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  const { data: transactions, isLoading: loadingTx } = useQuery({
+    queryKey: ['wallet-transactions', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const { data, error } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('user_id', profile?.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.id
+  });
 
   const handleAddCredit = async () => {
     const val = parseFloat(amount);

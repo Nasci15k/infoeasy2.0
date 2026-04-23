@@ -25,6 +25,7 @@ export default function Dashboard() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [catSearch, setCatSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('consultas');
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -115,7 +116,7 @@ export default function Dashboard() {
         </div>
 
         {/* Navigation Tabs */}
-        <Tabs defaultValue="consultas" className="space-y-12">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-12">
           <TabsList className="bg-white/80 backdrop-blur-md p-2 rounded-[2.5rem] h-auto flex flex-wrap gap-2 w-fit border border-slate-200 shadow-xl mx-auto lg:mx-0">
             {[
               { value: 'consultas', label: 'Motores', icon: Search },
@@ -152,11 +153,7 @@ export default function Dashboard() {
                      </div>
                   </div>
                   <Button 
-                    onClick={() => {
-                      const tabList = document.querySelector('[role="tablist"]');
-                      const profileTab = tabList?.querySelector('[value="perfil"]') as HTMLButtonElement;
-                      profileTab?.click();
-                    }}
+                    onClick={() => setActiveTab('perfil')}
                     className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl px-8 font-black uppercase text-[10px] tracking-widest italic"
                   >
                     Vincular Agora
