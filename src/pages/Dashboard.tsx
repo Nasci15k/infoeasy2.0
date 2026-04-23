@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { 
   Clock, History, Shield, BarChart3, Search, Database, Zap, Wallet, 
-  Activity, ArrowUpRight, TrendingUp, Users, Layout, Filter, X, Package
+  Activity, ArrowUpRight, TrendingUp, Users, Layout, Filter, X, Package, Send
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
