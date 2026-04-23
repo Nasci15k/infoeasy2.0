@@ -61,7 +61,7 @@ serve(async (req) => {
     const isPaid = miuseData.status === 'paid';
 
     if (isPaid) {
-      const { user_id: userId, type: orderType, item_id: itemId, period, amount: paidAmount } = pending;
+      const { user_id: userId, telegram_id: telegramId, type: orderType, item_id: itemId, amount: paidAmount } = pending;
       console.log(`Processing fulfillment for Miuse payment: ${payment_id}`);
 
       // --- START FULFILLMENT LOGIC (Mirrored from c7-webhook) ---
@@ -78,47 +78,49 @@ serve(async (req) => {
         const expirationDate = new Date();
         expirationDate.setDate(expirationDate.getDate() + durationDays);
 
-        const updates: any = {};
-        
-        if (plan.plan_type === 'site' || plan.plan_type === 'both') {
-          updates.plan_type = plan.name;
-          updates.plan_expires_at = expirationDate.toISOString();
-          // Site plans also grant Telegram access
-          updates.telegram_expires_at = expirationDate.toISOString();
-        } else if (plan.plan_type === 'telegram') {
-          updates.telegram_expires_at = expirationDate.toISOString();
+        if (userId) {
+          // Standard Flow
+          const updates: any = {};
+          if (plan.plan_type === 'site' || plan.plan_type === 'both') {
+            updates.plan_type = plan.name;
+            updates.plan_expires_at = expirationDate.toISOString();
+            updates.telegram_expires_at = expirationDate.toISOString();
+          } else if (plan.plan_type === 'telegram') {
+            updates.telegram_expires_at = expirationDate.toISOString();
+          }
+          updates.status = 'approved';
+
+          await serviceClient.from('profiles').update(updates).eq('id', userId);
+          await serviceClient.from('wallet_transactions').insert({
+            user_id: userId,
+            amount: paidAmount,
+            type: 'purchase_plan',
+            description: `Assinatura: ${plan.name} — ${durationDays} dias (${plan.plan_type})`
+          });
+        } else if (telegramId) {
+          // Telegram Only Flow
+          await serviceClient.from('bot_subscriptions').upsert({
+            telegram_id: String(telegramId),
+            expires_at: expirationDate.toISOString(),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'telegram_id' });
         }
 
-        updates.status = 'approved';
-
-        await serviceClient.from('profiles').update(updates).eq('id', userId);
-
-        await serviceClient.from('wallet_transactions').insert({
-          user_id: userId,
-          amount: paidAmount,
-          type: 'purchase_plan',
-          description: `Assinatura: ${plan.name} — ${durationDays} dias (${plan.plan_type})`
-        });
-
-      } else if (orderType === 'wallet') {
+      } else if (orderType === 'wallet' && userId) {
         const { data: profile } = await serviceClient.from('profiles').select('balance').eq('id', userId).single();
         const newBalance = (parseFloat(profile?.balance || 0)) + Number(paidAmount);
-
         await serviceClient.from('profiles').update({ balance: newBalance }).eq('id', userId);
-
         await serviceClient.from('wallet_transactions').insert({
           user_id: userId,
           amount: paidAmount,
           type: 'topup',
           description: `Recarga de carteira via Pix (Miuse): R$ ${Number(paidAmount).toFixed(2)}`
         });
-
-      } else if (orderType === 'database' || orderType === 'checker') {
+      } else if ((orderType === 'database' || orderType === 'checker') && userId) {
         await serviceClient.from('purchased_databases').upsert({
           user_id: userId,
           database_id: itemId
         });
-
         await serviceClient.from('wallet_transactions').insert({
           user_id: userId,
           amount: paidAmount,

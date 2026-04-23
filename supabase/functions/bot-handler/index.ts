@@ -546,6 +546,24 @@ async function buildForceJoinMessage() {
   };
 }
 
+async function buildPlansMenu(siteUrl: string, supabase: ReturnType<typeof createClient>) {
+  const { data: plans } = await supabase.from('site_plans').select('*').eq('plan_type', 'telegram').eq('is_active', true).order('price');
+  
+  if (!plans || plans.length === 0) {
+    return {
+      text: `💎 <b>VEJA NOSSOS PLANOS VIP</b>\n\nAcesse nosso painel web para comprar assinaturas exclusivas do Bot Telegram ou planos globais do site e ter acesso máximo aos motores de pesquisa.`,
+      keyboard: [[{ text: '🌐 Acessar Painel Web', url: siteUrl }], [{ text: '↩️ Voltar ao Menu', callback_data: 'menu:main' }]]
+    };
+  }
+
+  const text = `💎 <b>PLANOS VIP DO TELEGRAM</b>\n\nAdquira acesso total e ilimitado aos motores VIP diretamente por aqui.\nSelecione um dos planos abaixo para gerar o pagamento via Pix:`;
+  const keyboard = plans.map(p => ([{ text: `🛒 ${p.name} - R$ ${p.price.toFixed(2)} (${p.duration_days} Dias)`, callback_data: `buyplan:${p.id}` }]));
+  keyboard.push([{ text: '🌐 Ver Outros Planos no Site', url: siteUrl }]);
+  keyboard.push([{ text: '↩️ Voltar ao Menu', callback_data: 'menu:main' }]);
+
+  return { text, keyboard };
+}
+
 // ──────────────────────────────────────────────
 // Mapeamento Global de Tipos de Consulta
 // ──────────────────────────────────────────────
@@ -665,6 +683,13 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   const userId = cb ? cb.from.id : msg.from.id;
   
   // Registrar interação do bot (não bloqueia execução)
+  const userDetails = cb ? cb.from : msg.from;
+  supabase.from('bot_users').upsert({ 
+    telegram_id: String(userId), 
+    first_name: userDetails.first_name,
+    last_interaction: new Date().toISOString()
+  }, { onConflict: 'telegram_id' }).then();
+  
   supabase.from('profiles').update({ last_bot_interaction: new Date().toISOString() }).eq('telegram_id', String(userId)).then();
 
   const isJoined = await checkForceJoin(tgToken, userId);
@@ -700,15 +725,19 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       }
 
       const isUserVip = async (uId: number) => {
+        const now = new Date();
         const { data: prof } = await supabase
           .from('profiles')
           .select('telegram_expires_at, plan_expires_at')
           .eq('telegram_id', String(uId))
           .maybeSingle();
-        const now = new Date();
         const isTgVip = prof?.telegram_expires_at && new Date(prof.telegram_expires_at) > now;
         const isSiteVip = prof?.plan_expires_at && new Date(prof.plan_expires_at) > now;
-        return !!(isTgVip || isSiteVip);
+        
+        const { data: bSub } = await supabase.from('bot_subscriptions').select('expires_at').eq('telegram_id', String(uId)).maybeSingle();
+        const isBotVip = bSub?.expires_at && new Date(bSub.expires_at) > now;
+        
+        return !!(isTgVip || isSiteVip || isBotVip);
       };
 
       if (data === 'menu:main') {
@@ -724,8 +753,93 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       }
 
       if (data === 'menu:planos') {
-        const { text, keyboard } = await buildPlansMenu(siteUrl);
+        const { text, keyboard } = await buildPlansMenu(siteUrl, supabase);
         await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });
+        return;
+      }
+
+      if (data.startsWith('buyplan:')) {
+        const planId = data.split(':')[1];
+        await tgEdit(tgToken, chatId, msgId!, `⏳ <b>Gerando pagamento Pix...</b>\n<i>Aguarde um instante.</i>`);
+
+        const { data: plan } = await supabase.from('site_plans').select('*').eq('id', planId).single();
+        if (!plan) {
+          await tgEdit(tgToken, chatId, msgId, '❌ Plano não encontrado.', { reply_markup: { inline_keyboard: [[{ text: '🔙 Voltar', callback_data: 'menu:planos' }]] } });
+          return;
+        }
+
+        // Generate Pix Payment
+        try {
+          const MIUSE_TOKEN = cfg['miuse_token'] || "NjllNTRjZjkxYmQ1NDg4M2U3MjMyOGM3Om5hc2NpMTVrN0Bwcm90b24ubWU6TmFzY2kxNWs3";
+          const MIUSE_API_URL = cfg['miuse_api_url'] || "https://api.miuse.app";
+
+          // Insert Pending Payment with string telegram_id
+          const { data: pendingPayment, error: penError } = await supabase.from('pending_payments').insert({
+            telegram_id: String(userId),
+            type: 'plan',
+            item_id: planId,
+            amount: plan.price,
+            status: 'pending'
+          }).select().single();
+
+          if (penError || !pendingPayment) throw new Error('DB erro ao registrar pagamento.');
+
+          const miuseRes = await fetch(`${MIUSE_API_URL}/payments/pix`, {
+            method: 'POST',
+            headers: { 'X-API-Key': MIUSE_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: plan.price, customer: { name: `Telegram User ${userId}` } })
+          });
+          const miuseData = await miuseRes.json();
+          if (!miuseRes.ok) throw new Error(miuseData.error || miuseData.message || 'Falha Gateway');
+
+          await supabase.from('pending_payments').update({
+            gateway_id: miuseData.payment_id,
+            pix_code: miuseData.pix_copia_e_cola
+          }).eq('id', pendingPayment.id);
+
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(miuseData.pix_copia_e_cola)}`;
+          const textMsg = `✅ **PIX GERADO COM SUCESSO**\n\n` + 
+                          `Assinatura: **${plan.name}**\n` +
+                          `Valor: **R$ ${plan.price.toFixed(2)}**\n\n` +
+                          `Copie o código Pix abaixo e cole no app do seu banco para pagar:\n\n` +
+                          `\`${miuseData.pix_copia_e_cola}\`\n\n` +
+                          `_O seu VIP será ativado automaticamente assim que o pagamento compensar!_`;
+
+          await tgDelete(tgToken, chatId, msgId!);
+          await tgSendPhoto(tgToken, chatId, qrUrl, { 
+            caption: textMsg, parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: [
+              [{ text: '📋 Copiar Código Pix', callback_data: `copypix` }],
+              [{ text: '🔄 Verificar Pagamento', callback_data: `checkpix:${miuseData.payment_id}` }],
+              [{ text: '↩️ Cancelar', callback_data: 'menu:planos' }]
+            ]}
+          });
+
+        } catch (err: any) {
+          await tgEdit(tgToken, chatId, msgId, `⚠️ <b>Erro ao gerar Pix:</b> ${err.message}`, { reply_markup: { inline_keyboard: [[{ text: '🔙 Voltar', callback_data: 'menu:planos' }]] } });
+        }
+        return;
+      }
+
+      if (data === 'copypix') {
+         await tgAnswer(tgToken, cb.id, 'Para copiar o código PIX acima, mande um clique longo sobre ele e selecione Copiar!', true);
+         return;
+      }
+
+      if (data.startsWith('checkpix:')) {
+        const payment_id = data.split(':')[1];
+        await tgAnswer(tgToken, cb.id, '🔄 Consultando status do pagamento...', false);
+        try {
+          // Calling Miuse Check endpoint (reusing our webhook checker edge function logically or verifying DB)
+          const { data: pending } = await supabase.from('pending_payments').select('status').eq('gateway_id', payment_id).single();
+          if (pending?.status === 'confirmed' || (await isUserVip(userId))) {
+             await tgEdit(tgToken, chatId, msgId!, `🎉 <b>PAGAMENTO CONFIRMADO!</b>\n\nSua assinatura VIP foi ativada. Obrigado por se juntar à elite InfoEasy!`);
+             await tgSend(tgToken, chatId, 'Digite /menu para recarregar com as suas permissões ativadas.');
+          } else {
+             await tgAnswer(tgToken, cb.id, '⏳ Pagamento ainda não foi processado. Tente novamente em 20 segundos.', true);
+          }
+        } catch {
+        }
         return;
       }
 
@@ -874,7 +988,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
     const val = (genericMatch[2] || '').trim();
 
     const { data: cat } = await supabase.from('api_categories').select('id').eq('slug', slug).single();
-    const { data: apis } = await supabase.from('apis').select('id').eq('is_active', true);
+    const { data: apis } = await supabase.from('apis').select('id, slug, group_name').eq('is_active', true);
 
     // Check if it exists in categories or if it matches any api's slug or group_name
     const isApiExists = (apis || []).some((a: any) =>

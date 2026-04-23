@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { User, Mail, Send, Calendar, ShieldCheck, Loader2, Link2 } from 'lucide-react';
+import { User, Mail, Send, Calendar, ShieldCheck, Loader2, Link2, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export function ProfileTab() {

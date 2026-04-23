@@ -166,11 +166,11 @@ serve(async (req) => {
       const { message, days_ago } = body;
       if (!message) return new Response(JSON.stringify({ error: 'Mensagem vazia' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       
-      let query = serviceClient.from('profiles').select('telegram_id').not('telegram_id', 'is', null);
+      let query = serviceClient.from('bot_users').select('telegram_id');
       if (days_ago) {
          const dateLimit = new Date();
          dateLimit.setDate(dateLimit.getDate() - days_ago);
-         query = query.gte('last_bot_interaction', dateLimit.toISOString());
+         query = query.gte('last_interaction', dateLimit.toISOString());
       }
       
       const { data: users } = await query;

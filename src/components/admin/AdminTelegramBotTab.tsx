@@ -54,6 +54,14 @@ export function AdminTelegramBotTab() {
     }
   });
 
+  const { data: categories } = useQuery({
+    queryKey: ['admin-categories-vip'],
+    queryFn: async () => {
+      const { data } = await supabase.from('api_categories').select('*').order('name');
+      return data || [];
+    }
+  });
+
   const { data: botPlans } = useQuery({
     queryKey: ['admin-bot-plans'],
     queryFn: async () => {
@@ -140,8 +148,16 @@ export function AdminTelegramBotTab() {
   const toggleApiVip = async (apiId: string, currentStatus: boolean) => {
     const { error } = await supabase.from('apis').update({ is_vip: !currentStatus }).eq('id', apiId);
     if (!error) {
-      toast({ title: 'Status VIP do Bot alterado.' });
+      toast({ title: 'Status VIP da consulta alterado.' });
       queryClient.invalidateQueries({ queryKey: ['admin-apis-vip'] });
+    }
+  };
+
+  const toggleCategoryVip = async (catId: string, currentStatus: boolean) => {
+    const { error } = await supabase.from('api_categories').update({ is_vip: !currentStatus }).eq('id', catId);
+    if (!error) {
+      toast({ title: 'Status VIP do módulo completo alterado.' });
+      queryClient.invalidateQueries({ queryKey: ['admin-categories-vip'] });
     }
   };
 
@@ -267,25 +283,49 @@ export function AdminTelegramBotTab() {
       )}
 
       {activeTab === 'modules' && (
-        <Card className="p-8 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] rounded-[2rem] border-white space-y-6">
+        <Card className="p-8 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] rounded-[2rem] border-white space-y-10">
            <div className="flex items-center gap-3">
               <Shield className="h-6 w-6 text-amber-500" />
               <div>
-                <h3 className="text-xl font-black uppercase italic tracking-tighter">Módulos VIP do Telegram</h3>
+                <h3 className="text-xl font-black uppercase italic tracking-tighter">Gestão de Restrições Telegran</h3>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Defina o que é bloqueado para usuários gratuitos no bot.</p>
               </div>
            </div>
            
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
-              {apis?.map(api => (
-                 <div key={api.id} className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-colors ${api.is_vip ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
-                    <div className="flex flex-col truncate pr-2">
-                       <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">{api.group_name || 'Diversos'}</span>
-                       <span className="text-sm font-bold text-slate-800 truncate">{api.name}</span>
+           <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                 <Bot className="h-4 w-4 text-blue-600" />
+                 <h4 className="text-xs font-black uppercase tracking-widest text-slate-800">1. Módulos Inteiros (Categorias)</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                 {categories?.map(cat => (
+                    <div key={cat.id} className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-colors ${cat.is_vip ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
+                       <div className="flex flex-col truncate pr-2">
+                          <span className="text-sm font-bold text-slate-800 truncate">{cat.icon} {cat.name}</span>
+                          <span className="text-[9px] font-black tracking-widest uppercase text-amber-600">Categoria Completa</span>
+                       </div>
+                       <Switch checked={cat.is_vip} onCheckedChange={() => toggleCategoryVip(cat.id, cat.is_vip)} className="data-[state=checked]:bg-amber-500" />
                     </div>
-                    <Switch checked={api.is_vip} onCheckedChange={() => toggleApiVip(api.id, api.is_vip)} className="data-[state=checked]:bg-amber-500" />
-                 </div>
-              ))}
+                 ))}
+              </div>
+           </div>
+
+           <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                 <Shield className="h-4 w-4 text-blue-600" />
+                 <h4 className="text-xs font-black uppercase tracking-widest text-slate-800">2. Consultas Avulsas (APIs Específicas)</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                 {apis?.map(api => (
+                    <div key={api.id} className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-colors ${api.is_vip ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
+                       <div className="flex flex-col truncate pr-2">
+                          <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">{api.group_name || 'Diversos'}</span>
+                          <span className="text-sm font-bold text-slate-800 truncate">{api.name}</span>
+                       </div>
+                       <Switch checked={api.is_vip} onCheckedChange={() => toggleApiVip(api.id, api.is_vip)} className="data-[state=checked]:bg-blue-600" />
+                    </div>
+                 ))}
+              </div>
            </div>
         </Card>
       )}
