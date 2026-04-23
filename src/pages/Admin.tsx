@@ -19,6 +19,7 @@ import { SellersTab } from '@/components/admin/SellersTab';
 import { ApiTokensTab } from '@/components/admin/ApiTokensTab';
 import { AdminProductsTab } from '@/components/admin/AdminProductsTab';
 import { ApiPlansTab } from '@/components/admin/ApiPlansTab';
+import { AdminTelegramBotTab } from '@/components/admin/AdminTelegramBotTab';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export default function Admin() {
@@ -347,66 +348,7 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="bots" className="animate-in slide-in-from-bottom-8 duration-700">
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card className="bg-white border-white shadow-card rounded-[3rem] p-10 space-y-8">
-                   <div className="flex items-center gap-4">
-                      <div className="h-14 w-14 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100">
-                         <Send className="h-7 w-7 text-blue-600" />
-                      </div>
-                      <h3 className="text-2xl font-black uppercase italic tracking-tighter">Telegram Bot</h3>
-                   </div>
-                   <div className="space-y-6">
-                      <div className="space-y-3">
-                         <Label className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Master API Token</Label>
-                         <div className="relative">
-                            <Input 
-                              type={showTokens['tg'] ? 'text' : 'password'}
-                              value={botSettings.telegram_token}
-                              onChange={e => setBotSettings(p => ({ ...p, telegram_token: e.target.value }))}
-                              className="h-14 bg-slate-50 border-slate-100 rounded-2xl pr-14 font-mono font-bold text-slate-900"
-                            />
-                            <Button variant="ghost" size="sm" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" onClick={() => toggleShowToken('tg')}>
-                               {showTokens['tg'] ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                            </Button>
-                         </div>
-                      </div>
-                      <Button onClick={handleRegisterTelegram} className="w-full h-14 bg-blue-600 hover:bg-blue-700 rounded-2xl font-black uppercase tracking-widest italic" disabled={registeringTg}>
-                         {registeringTg ? <Loader2 className="animate-spin h-6 w-6" /> : 'Sincronizar Webhook'}
-                      </Button>
-                   </div>
-                </Card>
-
-                <Card className="bg-white border-white shadow-card rounded-[3rem] p-10 space-y-8">
-                   <div className="flex items-center gap-4">
-                      <div className="h-14 w-14 rounded-2xl bg-indigo-50 flex items-center justify-center border border-indigo-100">
-                         <Bot className="h-7 w-7 text-indigo-600" />
-                      </div>
-                      <h3 className="text-2xl font-black uppercase italic tracking-tighter">Discord Bot</h3>
-                   </div>
-                   <div className="space-y-6">
-                      <div className="grid grid-cols-1 gap-6">
-                         <div className="space-y-3">
-                            <Label className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Application ID</Label>
-                            <Input value={botSettings.discord_app_id} onChange={e => setBotSettings(p => ({ ...p, discord_app_id: e.target.value }))} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold text-slate-900" />
-                         </div>
-                         <div className="space-y-3">
-                            <Label className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Secret Token</Label>
-                            <Input type="password" value={botSettings.discord_token} onChange={e => setBotSettings(p => ({ ...p, discord_token: e.target.value }))} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold text-slate-900" />
-                         </div>
-                      </div>
-                      <Button onClick={handleRegisterDiscord} className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black uppercase tracking-widest italic" disabled={registeringDc}>
-                         {registeringDc ? <Loader2 className="animate-spin h-6 w-6" /> : 'Configurar Slash Commands'}
-                      </Button>
-                   </div>
-                </Card>
-
-                <div className="lg:col-span-2 flex justify-end pt-10 border-t border-slate-100">
-                   <Button onClick={handleSaveBotSettings} className="h-16 px-16 bg-blue-600 hover:bg-blue-700 rounded-[2rem] font-black uppercase tracking-[0.2em] italic shadow-2xl shadow-blue-500/30" disabled={savingBots}>
-                      {savingBots ? <Loader2 className="animate-spin h-6 w-6 mr-4" /> : <Save className="h-6 w-6 mr-4" />}
-                      Salvar Todas as Definições
-                   </Button>
-                </div>
-             </div>
+             <AdminTelegramBotTab />
           </TabsContent>
 
           <TabsContent value="proxy" className="animate-in slide-in-from-bottom-8 duration-700">

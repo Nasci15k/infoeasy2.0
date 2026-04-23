@@ -146,6 +146,56 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (action === 'update_bot_info') {
+      const token = cfg['telegram_token'];
+      if (!token) return new Response(JSON.stringify({ error: 'Token não configurado' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
+      const { name, description, short_description } = body;
+      
+      if (name) await fetch(`https://api.telegram.org/bot${token}/setMyName`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      if (description) await fetch(`https://api.telegram.org/bot${token}/setMyDescription`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description }) });
+      if (short_description) await fetch(`https://api.telegram.org/bot${token}/setMyShortDescription`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ short_description }) });
+      
+      return new Response(JSON.stringify({ success: true, message: 'Perfil do bot atualizado!' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'send_broadcast') {
+      const token = cfg['telegram_token'];
+      if (!token) return new Response(JSON.stringify({ error: 'Token não configurado' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
+      const { message, days_ago } = body;
+      if (!message) return new Response(JSON.stringify({ error: 'Mensagem vazia' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
+      let query = serviceClient.from('profiles').select('telegram_id').not('telegram_id', 'is', null);
+      if (days_ago) {
+         const dateLimit = new Date();
+         dateLimit.setDate(dateLimit.getDate() - days_ago);
+         query = query.gte('last_bot_interaction', dateLimit.toISOString());
+      }
+      
+      const { data: users } = await query;
+      if (!users || users.length === 0) {
+        return new Response(JSON.stringify({ success: true, message: 'Nenhum usuário encontrado no período.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      // Enviar em background para evitar timeout
+      EdgeRuntime.waitUntil((async () => {
+        for (const u of users) {
+          try {
+            await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: u.telegram_id, text: message, parse_mode: 'HTML' }),
+            });
+            // Delay pequeno p/ evitar limit rate
+            await new Promise(r => setTimeout(r, 50));
+          } catch(e) {}
+        }
+      })());
+      
+      return new Response(JSON.stringify({ success: true, message: `Disparo iniciado para ${users.length} usuário(s).` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     return new Response(JSON.stringify({ error: 'Ação inválida' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

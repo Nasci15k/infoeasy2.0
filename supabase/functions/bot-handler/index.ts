@@ -663,6 +663,10 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
 
   // VERIFICAÇÃO DE FORCE JOIN
   const userId = cb ? cb.from.id : msg.from.id;
+  
+  // Registrar interação do bot (não bloqueia execução)
+  supabase.from('profiles').update({ last_bot_interaction: new Date().toISOString() }).eq('telegram_id', String(userId)).then();
+
   const isJoined = await checkForceJoin(tgToken, userId);
   if (!isJoined) {
     const { text: fjText, keyboard: fjKb } = await buildForceJoinMessage();
@@ -734,7 +738,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
           const isVip = await isUserVip(userId);
           if (!isVip) {
             const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
-            await tgEdit(tgToken, chatId, msgId, `⭐ <b>CONTEÚDO VIP</b>\n\nA categoria <b>${escapeHtml(cat.name)}</b> é exclusiva para assinantes VIP.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+            await tgEdit(tgToken, chatId, msgId, `⚠️ <b>ACESSO NEGADO - CATEGORIA VIP</b>\n\nA categoria <b>${escapeHtml(cat.name)}</b> é exclusiva para assinantes VIP do Bot.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
             return;
           }
         }
@@ -755,7 +759,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
           const isVip = await isUserVip(userId);
           if (!isVip) {
             const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
-            await tgEdit(tgToken, chatId, msgId, `⭐ <b>MÓDULO VIP</b>\n\nO módulo <b>${escapeHtml(api.name)}</b> é restrito a assinantes.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+            await tgEdit(tgToken, chatId, msgId, `⚠️ <b>ACESSO NEGADO - MÓDULO VIP</b>\n\nO módulo <b>${escapeHtml(api.name)}</b> é restrito a assinantes VIP do Bot.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
             return;
           }
         }
@@ -903,7 +907,7 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
         if (!isVip) {
           const { text: pText, keyboard: pKb } = await buildPlansMenu(siteUrl);
           const name = targetCat?.name || targetApi?.name || slug;
-          await tgSend(tgToken, chatId, `⭐ <b>CONTEÚDO VIP</b>\n\nO acesso ao módulo <b>${escapeHtml(name)}</b> é exclusivo para assinantes VIP.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
+          await tgSend(tgToken, chatId, `⚠️ <b>ACESSO NEGADO - MÓDULO VIP</b>\n\nO acesso ao módulo <b>${escapeHtml(name)}</b> é exclusivo para assinantes VIP do Bot.\n\n` + pText, { reply_markup: { inline_keyboard: pKb } });
           return;
         }
       }

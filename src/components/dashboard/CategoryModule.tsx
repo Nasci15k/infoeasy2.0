@@ -72,7 +72,7 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
       return;
     }
 
-    if (selectedApi?.is_vip) {
+    if (selectedApi?.is_web_vip) {
       const price = selectedApi.vip_price || 0;
       if (Number(profile?.balance || 0) < price) {
         toast({ title: 'Saldo Insuficiente', description: 'Recarregue sua carteira para esta consulta VIP.', variant: 'destructive' });
@@ -206,7 +206,7 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
                               {api.name}
                            </h4>
                         </div>
-                        {api.is_vip && (
+                        {api.is_web_vip && (
                            <Badge className={`h-5 text-[9px] font-black ${
                               selectedApiId === api.id ? 'bg-white text-blue-600' : 'bg-amber-100 text-amber-600'
                            }`}>VIP</Badge>
@@ -265,7 +265,7 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
                      className={`w-full h-20 rounded-2xl font-black uppercase tracking-widest text-lg shadow-2xl transition-all active:scale-[0.98] ${
                         isSearching 
                            ? 'bg-slate-100 text-slate-300' 
-                           : selectedApi?.is_vip
+                           : selectedApi?.is_web_vip
                               ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-500/30'
                               : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/30'
                      }`}
@@ -277,8 +277,8 @@ export function CategoryModule({ category, apis, limits }: CategoryModuleProps) 
                         </div>
                      ) : (
                         <div className="flex items-center gap-4">
-                           {selectedApi?.is_vip ? <Wallet className="h-6 w-6" /> : <SearchIcon className="h-6 w-6" />}
-                           <span>{selectedApi?.is_vip ? `Pagar e Varrer (R$ ${selectedApi.vip_price?.toFixed(2)})` : 'Iniciar Varredura'}</span>
+                           {selectedApi?.is_web_vip ? <Wallet className="h-6 w-6" /> : <SearchIcon className="h-6 w-6" />}
+                           <span>{selectedApi?.is_web_vip ? `Pagar e Varrer (R$ ${selectedApi.vip_price?.toFixed(2)})` : 'Iniciar Varredura'}</span>
                         </div>
                      )}
                   </Button>

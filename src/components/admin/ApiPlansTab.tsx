@@ -32,7 +32,7 @@ export function ApiPlansTab() {
   const { data: plans, isLoading } = useQuery({
     queryKey: ['admin-api-plans'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('site_plans').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('site_plans').select('*').eq('plan_type', 'site').order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     }
@@ -125,11 +125,10 @@ export function ApiPlansTab() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Tipo de Plano</Label>
-                  <Select value={formData.plan_type} onValueChange={v => setFormData({...formData, plan_type: v})}>
+                  <Select value={formData.plan_type} onValueChange={v => setFormData({...formData, plan_type: v})} disabled>
                     <SelectTrigger className="bg-white/5 border-white/10 rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#1C1A2E] border-white/10 text-white">
-                      <SelectItem value="site">Site + Telegram</SelectItem>
-                      <SelectItem value="telegram">Telegram VIP Apenas</SelectItem>
+                      <SelectItem value="site">Acesso Site Completo</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -179,7 +178,7 @@ export function ApiPlansTab() {
               <TableRow key={plan.id} className="border-white/5 hover:bg-white/[0.01]">
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full w-fit mb-1 ${plan.plan_type === 'telegram' ? 'bg-orange-500/20 text-orange-500' : 'bg-blue-500/20 text-blue-500'}`}>{plan.plan_type}</span>
+                    <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full w-fit mb-1 bg-blue-500/20 text-blue-500">Web Dashboard</span>
                     <span className="font-black text-white italic">{plan.name}</span>
                   </div>
                 </TableCell>
