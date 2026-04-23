@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ export function PlansTab() {
   const [loading, setLoading] = useState<string | null>(null);
   const [pixData, setPixData] = useState<any>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const { toast } = useToast();
 
   const { data: plans, isLoading } = useQuery({
     queryKey: ['plans', tab],
