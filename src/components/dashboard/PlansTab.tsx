@@ -7,7 +7,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Zap, Check, ShieldCheck, Loader2, Sparkles, Clock, Star, Trophy } from 'lucide-react';
 
+export function PlansTab() {
   const [tab, setTab] = useState<'site' | 'telegram'>('site');
+  const [loading, setLoading] = useState<string | null>(null);
+  const [pixData, setPixData] = useState<any>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const { data: plans, isLoading } = useQuery({
     queryKey: ['plans', tab],
@@ -199,7 +203,5 @@ import { Zap, Check, ShieldCheck, Loader2, Sparkles, Clock, Star, Trophy } from 
         )}
       </div>
     </div>
-  );
-}
   );
 }
