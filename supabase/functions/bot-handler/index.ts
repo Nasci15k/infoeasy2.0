@@ -235,8 +235,8 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
   const encodedValue = encodeURIComponent(queryValue);
   let apiUrl = '';
 
-  const TOKEN_PANEL = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
-  const BASE_URL_PANEL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
+  const TOKEN_PANEL = cfg['external_api_token'] || "5d3En20IijT73XWENEKbtfw6cTnd3Inq_v3ZUQB4PC8";
+  const BASE_URL_PANEL = cfg['external_api_url'] || "http://23.81.118.36:7070/consulta";
 
   if (endpointStore.startsWith('panel:')) {
     const modulo = endpointStore.split(':')[1];
@@ -267,6 +267,22 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
+    // RATE LIMITING / ANTI-DUMP
+    const limitPeriod = 60000; // 1 minute
+    const maxRequests = 10;
+    const now = new Date();
+    const oneMinuteAgo = new Date(now.getTime() - limitPeriod).toISOString();
+
+    const { count: recentCount } = await supabase
+      .from('query_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('api_id', apiId)
+      .gte('created_at', oneMinuteAgo);
+
+    if (recentCount && recentCount >= maxRequests) {
+       throw new Error('Limite de segurança atingido. Por favor, aguarde um minuto para realizar nova consulta neste módulo.');
+    }
+
     const response = await fetch(apiUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -280,6 +296,11 @@ async function doQuery(apiId: string, queryValue: string, supabase: ReturnType<t
     if (!response.ok) throw new Error(`O provedor retornou erro HTTP ${response.status}`);
 
     const textData = await response.text();
+
+    // REGISTRAR NO HISTÓRICO (para admin stats e rate limiting)
+    // Nota: Em Edge Function o auth.uid() não está disponível se não for chamado via client. 
+    // Usamos service role, então registramos manualmente se tivermos o userId (passado via param se necessário).
+    // Para simplificar, o doQuery atual não recebe userId, mas vamos adicionar.
 
     // Checagem de erros SQL/Servidor
     const serverErrorKeywords = ['SQLSTATE', 'General error', 'Connection refused', 'PDOException', 'no such table'];
@@ -510,12 +531,16 @@ async function buildMainMenu(firstName: string) {
     `📋 <b>Escolha uma opção para começar:</b>`;
 
   const keyboard = [
+    [{ text: '🌐 Acessar Site Oficial', url: 'https://infoseasy.netlify.app' }],
     [{ text: '➕ Adicionar em Grupo', url: 'https://t.me/InfoEasyBot?startgroup=new' }],
     [
       { text: '🪪 Consultas', callback_data: 'menu:consultas' },
-      { text: '📢 Canal', url: 'https://t.me/infoseasy' }
+      { text: '📧 E-mail Temporário', callback_data: 'tempmail:refresh' }
     ],
-    [{ text: '🆘 Suporte', url: 'https://t.me/infoseasy' }]
+    [
+      { text: '📢 Canal', url: 'https://t.me/infoseasy' },
+      { text: '🆘 Suporte', url: 'https://t.me/infoseasy' }
+    ]
   ];
 
   return { text: welcome, keyboard };
@@ -659,6 +684,122 @@ async function buildApiMenu(
   return { text, keyboard: buttons };
 }
 
+
+
+// ──────────────────────────────────────────────
+// MAPA: Helper para gerar link do Google Maps
+// ──────────────────────────────────────────────
+function getMapLink(data: any): string | null {
+  const findAddress = (obj: any): string | null => {
+    if (!obj || typeof obj !== 'object') return null;
+    const keys = Object.keys(obj).map(k => k.toLowerCase());
+    
+    // Procura por campos de endereço
+    const logradouro = obj.logradouro || obj.endereco || obj.address || obj.rua;
+    if (logradouro && typeof logradouro === 'string' && logradouro.length > 5) {
+      const cidade = obj.cidade || obj.municipio || obj.city || '';
+      const uf = obj.uf || obj.estado || obj.state || '';
+      const numero = obj.numero || obj.num || '';
+      const bairro = obj.bairro || '';
+      const cep = obj.cep || '';
+      
+      return `${logradouro}, ${numero} - ${bairro} ${cidade} ${uf} ${cep}`.trim();
+    }
+
+    for (const v of Object.values(obj)) {
+      if (typeof v === 'object') {
+        const found = findAddress(v);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const address = findAddress(data);
+  if (address) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  }
+  return null;
+}
+
+// ──────────────────────────────────────────────
+// TEMP MAIL: Helpers 1secmail
+// ──────────────────────────────────────────────
+async function buildTempMailMenu(userId: number, supabase: ReturnType<typeof createClient>) {
+  const { data: temp } = await supabase.from('bot_temp_emails').select('*').eq('telegram_id', String(userId)).maybeSingle();
+
+  let text = `📧 <b>SISTEMA DE TEMP MAIL</b>\n━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  const keyboard = [];
+
+  if (!temp) {
+    text += `Você ainda não possui um e-mail temporário ativo.\nClique no botão abaixo para gerar um agora.`;
+    keyboard.push([{ text: '🆕 Gerar Novo E-mail', callback_data: 'tempmail:new' }]);
+  } else {
+    text += `📬 <b>E-mail:</b> <code>${temp.email}</code>\n\n`;
+    
+    // Buscar mensagens salvas no DB
+    const { data: msgs } = await supabase.from('bot_temp_messages')
+      .select('*')
+      .eq('temp_email_id', temp.id)
+      .order('received_at', { ascending: false });
+
+    if (!msgs || msgs.length === 0) {
+      text += `<i>Nenhuma mensagem recebida ainda...</i>`;
+    } else {
+      text += `📥 <b>Últimas mensagens:</b>\n`;
+      msgs.slice(0, 5).forEach((m, i) => {
+        text += `\n${i+1}. <b>De:</b> ${escapeHtml(m.from_email)}\n   <b>Assunto:</b> ${escapeHtml(m.subject || '(Sem assunto)')}\n   /view_mail_${m.id}\n`;
+      });
+    }
+
+    keyboard.push([{ text: '🔄 Atualizar / Buscar', callback_data: 'tempmail:refresh' }]);
+    keyboard.push([{ text: '🆕 Gerar Novo (Apaga atual)', callback_data: 'tempmail:new' }]);
+  }
+
+  keyboard.push([{ text: '↩️ Voltar', callback_data: 'menu:main' }]);
+  return { text, keyboard };
+}
+
+async function syncTempMail(userId: number, supabase: ReturnType<typeof createClient>) {
+  const { data: temp } = await supabase.from('bot_temp_emails').select('*').eq('telegram_id', String(userId)).maybeSingle();
+  if (!temp) return;
+
+  const [login, domain] = temp.email.split('@');
+  const url = `https://www.1secmail.com/api/v1/?action=getMessages&login=${login}&domain=${domain}`;
+  
+  try {
+    const res = await fetch(url);
+    const messages = await res.json();
+    
+    if (Array.isArray(messages)) {
+      for (const m of messages) {
+        // Verificar se já existe
+        const { data: exists } = await supabase.from('bot_temp_messages')
+          .select('id').eq('temp_email_id', temp.id).eq('external_id', m.id).maybeSingle();
+        
+        if (!exists) {
+          // Buscar corpo da mensagem
+          const readUrl = `https://www.1secmail.com/api/v1/?action=readMessage&login=${login}&domain=${domain}&id=${m.id}`;
+          const readRes = await fetch(readUrl);
+          const detail = await readRes.json();
+          
+          await supabase.from('bot_temp_messages').insert({
+            temp_email_id: temp.id,
+            external_id: m.id,
+            from_email: m.from,
+            subject: m.subject,
+            body: detail.textBody || detail.body || detail.htmlBody,
+            received_at: m.date
+          });
+        }
+      }
+    }
+    
+    await supabase.from('bot_temp_emails').update({ last_checked_at: new Date().toISOString() }).eq('id', temp.id);
+  } catch (e) {
+    console.error('Error syncing temp mail:', e);
+  }
+}
 
 
 // ──────────────────────────────────────────────
@@ -948,6 +1089,26 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
   const text = msg.text.trim();
   const lower = text.toLowerCase();
   const firstName = msg.from.first_name;
+
+  if (lower === '/tempmail') {
+    const { text, keyboard } = await buildTempMailMenu(userId, supabase);
+    await tgSend(tgToken, chatId, text, { reply_markup: { inline_keyboard: keyboard } });
+    return;
+  }
+
+  if (lower.startsWith('/view_mail_')) {
+    const mailId = lower.replace('/view_mail_', '');
+    const { data: m } = await supabase.from('bot_temp_messages').select('*').eq('id', mailId).single();
+    if (m) {
+      const msgText = `📧 <b>MENSAGEM RECEBIDA</b>\n━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `<b>De:</b> ${escapeHtml(m.from_email)}\n` +
+        `<b>Assunto:</b> ${escapeHtml(m.subject || '(Sem assunto)')}\n` +
+        `<b>Data:</b> ${new Date(m.received_at).toLocaleString()}\n\n` +
+        `<b>Mensagem:</b>\n<code>${escapeHtml(m.body || '')}</code>`;
+      await tgSend(tgToken, chatId, msgText, { reply_markup: { inline_keyboard: [[{ text: '🔙 Voltar ao Temp Mail', callback_data: 'tempmail:refresh' }]] } });
+    }
+    return;
+  }
 
   if (lower === '/start' || lower === '/menu') {
     const { text: mText, keyboard } = await buildMainMenu(firstName);

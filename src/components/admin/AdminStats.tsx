@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Users, UserCheck, UserX, Clock, Shield, Activity, TrendingUp, Database, Edit2, Save, X, DollarSign, Zap, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export function AdminStats() {
   const { toast } = useToast();
@@ -20,7 +21,7 @@ export function AdminStats() {
       const [profiles, limits, queries, apis, overrides] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('user_limits').select('*'),
-        supabase.from('query_history').select('*').gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
+        supabase.from('query_history').select('*, apis(name, group_name)').gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
         supabase.from('apis').select('*'),
         supabase.from('admin_stats_override').select('*'),
       ]);
@@ -41,6 +42,12 @@ export function AdminStats() {
       const queriesToday = queries.data?.length || 0;
       const activeApis = apis.data?.filter(a => a.is_active).length || 0;
       
+      const apiUsage = queries.data?.reduce((acc: any, q: any) => {
+        const apiName = q.apis?.name || q.api_id;
+        acc[apiName] = (acc[apiName] || 0) + 1;
+        return acc;
+      }, {}) || {};
+      
       return {
         totalUsers: overrideMap['totalUsers'] || profiles.data?.length || 0,
         approved: overrideMap['approved'] || approved,
@@ -54,6 +61,7 @@ export function AdminStats() {
         queriesMonth: overrideMap['queriesMonth'] || 0,
         totalApis: overrideMap['totalApis'] || apis.data?.length || 0,
         activeApis: overrideMap['activeApis'] || activeApis,
+        apiUsage
       };
     },
   });
@@ -135,6 +143,52 @@ export function AdminStats() {
           </Card>
         ))}
       </div>
+
+      <Card className="bg-white border-white shadow-card rounded-[2.5rem] p-8 overflow-hidden">
+        <CardHeader className="p-0 pb-8">
+           <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                 <Database className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Utilização por API (Hoje)</CardTitle>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Monitoramento de Limites diários</p>
+              </div>
+           </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {Object.entries(stats?.apiUsage || {}).map(([api, count]: [string, any]) => {
+              const isHigh = count >= 800;
+              const isLimit = count >= 1000;
+              return (
+                <div key={api} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 group hover:bg-white hover:shadow-lg transition-all">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest truncate">{api}</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className={cn("text-3xl font-black italic tracking-tighter", isLimit ? "text-red-600" : isHigh ? "text-amber-500" : "text-slate-900")}>
+                        {count}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400">/ 1000</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
+                      <div 
+                        className={cn("h-full transition-all duration-1000", isLimit ? "bg-red-600" : isHigh ? "bg-amber-500" : "bg-blue-600")}
+                        style={{ width: `${Math.min((count / 1000) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {Object.keys(stats?.apiUsage || {}).length === 0 && (
+              <div className="col-span-full py-12 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Nenhuma requisição registrada hoje</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

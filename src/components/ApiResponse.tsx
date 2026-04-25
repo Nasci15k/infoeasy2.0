@@ -279,6 +279,11 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover/field:opacity-100 hover:bg-blue-50 transition-all rounded flex-shrink-0" onClick={() => copyToClipboard(String(value), key)}>
                     <Copy className="h-3 w-3 text-blue-600" />
                   </Button>
+                  {(key.toLowerCase().includes('logradouro') || key.toLowerCase().includes('endereco') || key.toLowerCase().includes('rua') || key.toLowerCase().includes('localizacao')) && String(value).length > 5 && (
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover/field:opacity-100 hover:bg-emerald-50 transition-all rounded flex-shrink-0 ml-1" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(String(value))}`, '_blank')}>
+                      <MapPin className="h-3 w-3 text-emerald-600" />
+                    </Button>
+                  )}
                 </div>
                 <span className={cn("font-black text-slate-800 break-words leading-tight mt-1", depth === 0 ? "text-sm" : "text-xs")}>
                   {renderValue(value)}

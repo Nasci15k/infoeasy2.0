@@ -73,8 +73,8 @@ export default function Admin() {
         discord_app_id: cfg['discord_app_id'] || '',
         discord_public_key: cfg['discord_public_key'] || '',
         site_url: cfg['site_url'] || 'https://infoeasy.com.br',
-        external_api_token: cfg['external_api_token'] || '',
-        external_api_url: cfg['external_api_url'] || '',
+        external_api_token: cfg['external_api_token'] || '5d3En20IijT73XWENEKbtfw6cTnd3Inq_v3ZUQB4PC8',
+        external_api_url: cfg['external_api_url'] || 'http://23.81.118.36:7070/consulta',
       });
     };
     loadBotSettings();
