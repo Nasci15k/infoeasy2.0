@@ -77,7 +77,7 @@ export function MapEmbed({ address }: MapEmbedProps) {
           </div>
         ) : coords ? (
           <iframe
-            title="Mapa 3D de Alta Qualidade"
+            title="Mapa 3D de Ultra Qualidade"
             width="100%"
             height="100%"
             frameBorder="0"

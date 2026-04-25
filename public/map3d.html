@@ -9,66 +9,86 @@
       width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
       background: #000;
     }
-    .cesium-viewer-bottom { display: none !important; } /* Hide credits for cleaner look */
+    /* Hide Cesium UI elements for a cleaner dashboard look */
+    .cesium-viewer-bottom, 
+    .cesium-viewer-animationContainer, 
+    .cesium-viewer-timelineContainer,
+    .cesium-viewer-toolbar { 
+      display: none !important; 
+    }
   </style>
 </head>
 <body>
   <div id="cesiumContainer"></div>
   <script>
-    // Initialize the Cesium Viewer in the cesiumContainer element.
+    // Configurações do Usuário
+    Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhODVhODA0Mi01MTM1LTQzZjMtOTYwYi03YzZjYTRkYjUwOTUiLCJpZCI6NDA1ODM5LCJpYXQiOjE3NzM4NzQyMjl9.wXfnlGmc-_v6whCgmUu-KKaFoiXwoLXIcdBum77FFDQ";
+
     const urlParams = new URLSearchParams(window.location.search);
     const lat = parseFloat(urlParams.get('lat'));
     const lon = parseFloat(urlParams.get('lon'));
 
-    const viewer = new Cesium.Viewer('cesiumContainer', {
-      terrainProvider: Cesium.createWorldTerrain(),
-      baseLayerPicker: false,
-      geocoder: false,
-      homeButton: false,
-      infoBox: false,
-      sceneModePicker: false,
-      selectionIndicator: false,
-      navigationHelpButton: false,
-      animation: false,
-      timeline: false,
-      fullscreenButton: false,
-      // Use high quality satellite imagery
-      imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 }) // Bing Maps Aerial
-    });
-
-    if (!isNaN(lat) && !isNaN(lon)) {
-      const position = Cesium.Cartesian3.fromDegrees(lon, lat, 400); // 400m height
-      viewer.camera.flyTo({
-        destination: position,
-        orientation: {
-          heading: Cesium.Math.toRadians(0),
-          pitch: Cesium.Math.toRadians(-45), // 3D Tilt
-          roll: 0.0
-        },
-        duration: 2
+    async function init() {
+      const viewer = new Cesium.Viewer("cesiumContainer", {
+        globe: false,
+        skyAtmosphere: new Cesium.SkyAtmosphere(),
+        sceneModePicker: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        infoBox: false,
+        selectionIndicator: false,
+        navigationHelpButton: false,
+        animation: false,
+        timeline: false,
+        fullscreenButton: false
       });
 
-      // Add a marker
-      viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(lon, lat),
-        point: {
-          pixelSize: 15,
-          color: Cesium.Color.RED,
-          outlineColor: Cesium.Color.WHITE,
-          outlineWidth: 3
-        },
-        label: {
-          text: 'LOCALIZADO',
-          font: 'bold 12pt sans-serif',
-          fillColor: Cesium.Color.WHITE,
-          outlineColor: Cesium.Color.BLACK,
-          outlineWidth: 2,
-          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          pixelOffset: new Cesium.Cartesian2(0, -20)
+      try {
+        // Load Google Photorealistic 3D Tiles
+        const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(2275207);
+        viewer.scene.primitives.add(tileset);
+
+        if (!isNaN(lat) && !isNaN(lon)) {
+          const position = Cesium.Cartesian3.fromDegrees(lon, lat, 350); // 350m height
+          viewer.camera.flyTo({
+            destination: position,
+            orientation: {
+              heading: Cesium.Math.toRadians(0),
+              pitch: Cesium.Math.toRadians(-35), // 3D Tilt
+              roll: 0.0
+            },
+            duration: 2
+          });
+
+          // Add a custom marker
+          viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(lon, lat, 10),
+            point: {
+              pixelSize: 12,
+              color: Cesium.Color.RED,
+              outlineColor: Cesium.Color.WHITE,
+              outlineWidth: 3
+            },
+            label: {
+              text: 'LOCALIZADO',
+              font: 'bold 12pt sans-serif',
+              fillColor: Cesium.Color.WHITE,
+              outlineColor: Cesium.Color.BLACK,
+              outlineWidth: 2,
+              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+              pixelOffset: new Cesium.Cartesian2(0, -15),
+              disableDepthTestDistance: Number.POSITIVE_INFINITY // Always show on top
+            }
+          });
         }
-      });
+      } catch (error) {
+        console.error("Erro ao carregar Tileset 3D:", error);
+      }
     }
+
+    init();
   </script>
 </body>
 </html>
