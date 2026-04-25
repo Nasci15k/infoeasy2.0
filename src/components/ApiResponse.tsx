@@ -306,6 +306,7 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
                   </h4>
                   
                   {isArr ? (
+                    <div className={cn("grid gap-4", value.length > 1 ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1")}>
                       {value.map((item: any, i: number) => {
                         const keys = typeof item === 'object' && item !== null ? Object.keys(item).map(k => k.toLowerCase()) : [];
                         const isAddressObj = keys.some(k => ['logradouro', 'endereco', 'rua', 'cep', 'bairro', 'cidade', 'localidade'].includes(k));
