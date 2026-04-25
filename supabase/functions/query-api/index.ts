@@ -141,8 +141,8 @@ serve(async (req) => {
     const cfg: Record<string, string> = {};
     settings?.forEach((s: any) => { cfg[s.key] = s.value; });
 
-    const TOKEN_PANEL = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
-    const BASE_URL_PANEL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
+    const TOKEN_PANEL = cfg['external_api_token'] || "5d3En20IijT73XWENEKbtfw6cTnd3Inq_v3ZUQB4PC8";
+    const BASE_URL_PANEL = cfg['external_api_url'] || "http://23.81.118.36:7070/";
     const TOKEN_DUALITY = "DUALITY-FREE";
 
     const valueStr = String(queryValue);
