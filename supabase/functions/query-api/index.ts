@@ -141,8 +141,9 @@ serve(async (req) => {
     const cfg: Record<string, string> = {};
     settings?.forEach((s: any) => { cfg[s.key] = s.value; });
 
-    const TOKEN_PANEL = cfg['external_api_token'] || "5d3En20IijT73XWENEKbtfw6cTnd3Inq_v3ZUQB4PC8";
-    const BASE_URL_PANEL = cfg['external_api_url'] || "http://23.81.118.36:7070/";
+    // FORÇAR NOVOS VALORES INFO EASY (IGNORAR BANCO SE ANTIGO)
+    const TOKEN_PANEL = "5d3En20IijT73XWENEKbtfw6cTnd3Inq_v3ZUQB4PC8";
+    const BASE_URL_PANEL = "http://23.81.118.36:7070";
     const TOKEN_DUALITY = "DUALITY-FREE";
 
     const valueStr = String(queryValue);
@@ -151,7 +152,19 @@ serve(async (req) => {
 
     if (endpointStore.startsWith('panel:')) {
       const modulo = endpointStore.split(':')[1];
-      apiUrl = `${BASE_URL_PANEL}?token=${TOKEN_PANEL}&modulo=${modulo}&valor=${encodedValue}`;
+      
+      if (modulo === 'telegram') {
+        apiUrl = `${BASE_URL_PANEL}/telegram?token=${TOKEN_PANEL}&user=${encodedValue}`;
+      } else if (modulo === 'likes') {
+        apiUrl = `${BASE_URL_PANEL}/likes?token=${TOKEN_PANEL}&id=${encodedValue}&region=BR`;
+      } else {
+        // Mapeamento de nomes exatos da lista do usuário
+        const moduloMap: Record<string, string> = {
+          'iseek-dados---nomeabreviadofiltros': 'iseek-dados---nomeabreviadofriltros',
+        };
+        const finalModulo = moduloMap[modulo] || modulo;
+        apiUrl = `${BASE_URL_PANEL}/consulta?token=${TOKEN_PANEL}&modulo=${finalModulo}&valor=${encodedValue}`;
+      }
 
     } else if (endpointStore.startsWith('brasilpro:')) {
       const param = endpointStore.split(':')[1];
@@ -210,7 +223,9 @@ serve(async (req) => {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`O provedor retornou erro HTTP ${response.status}`);
+        const errorBody = await response.text();
+        console.error(`[DEBUG] Erro da API (${response.status}):`, errorBody);
+        throw new Error(`O provedor retornou erro HTTP ${response.status}: ${errorBody.substring(0, 100)}`);
       }
 
       const textData = await response.text();

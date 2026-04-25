@@ -151,9 +151,21 @@ serve(async (req) => {
 
     if (apiMeta.endpoint.startsWith('panel:')) {
       const panelModulo = apiMeta.endpoint.split(':')[1];
-      const API_TOKEN = cfg['external_api_token'] || "23btetakuv3zx8HkEcfRpEy_zonEFilQBDLOJl9rEPk";
-      const API_BASE_URL = cfg['external_api_url'] || "http://158.173.2.17:7070/consulta";
-      targetUrl = `${API_BASE_URL}?token=${API_TOKEN}&modulo=${panelModulo}&valor=${encodedValue}`;
+      const API_TOKEN = "5d3En20IijT73XWENEKbtfw6cTnd3Inq_v3ZUQB4PC8";
+      const API_BASE_URL = "http://23.81.118.36:7070";
+
+      if (panelModulo === 'telegram') {
+        targetUrl = `${API_BASE_URL}/telegram?token=${API_TOKEN}&user=${valor}`;
+      } else if (panelModulo === 'likes') {
+        targetUrl = `${API_BASE_URL}/likes?token=${API_TOKEN}&id=${valor}&region=BR`;
+      } else {
+        // Mapeamento de nomes exatos da lista do usuário
+        const moduloMap: Record<string, string> = {
+          'iseek-dados---nomeabreviadofiltros': 'iseek-dados---nomeabreviadofriltros',
+        };
+        const finalModulo = moduloMap[panelModulo] || panelModulo;
+        targetUrl = `${API_BASE_URL}/consulta?token=${API_TOKEN}&modulo=${finalModulo}&valor=${encodedValue}`;
+      }
 
     } else if (apiMeta.endpoint.startsWith('brasilpro:')) {
       const param = apiMeta.endpoint.split(':')[1];

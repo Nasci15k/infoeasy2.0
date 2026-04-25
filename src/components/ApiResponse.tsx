@@ -7,6 +7,7 @@ import { useState, useMemo } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { MapEmbed } from '@/components/MapEmbed';
 
 interface ApiResponseProps {
   data: any;
@@ -306,16 +307,27 @@ export function ApiResponse({ data, apiName }: ApiResponseProps) {
                   
                   {isArr ? (
                     <div className={cn("grid gap-4", value.length > 1 ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1")}>
-                      {value.map((item: any, i: number) => (
-                        <div key={i} className="p-5 bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] w-full overflow-hidden">
-                          <Badge variant="outline" className="text-[9px] mb-4 text-slate-400 font-black uppercase bg-slate-50 border-slate-200">Registro #{i + 1}</Badge>
-                          {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-sm font-black text-slate-700 block">{renderValue(item)}</span>}
-                        </div>
-                      ))}
+                      {value.map((item: any, i: number) => {
+                        const isAddressObj = typeof item === 'object' && item !== null && (item.logradouro || item.endereco || item.rua || item.cep);
+                        const fullAddress = isAddressObj ? [item.logradouro || item.endereco || item.rua, item.numero, item.complemento, item.bairro, item.cidade, item.uf, item.cep].filter(Boolean).join(', ') : '';
+                        
+                        return (
+                          <div key={i} className="p-5 bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] w-full overflow-hidden">
+                            <Badge variant="outline" className="text-[9px] mb-4 text-slate-400 font-black uppercase bg-slate-50 border-slate-200">Registro #{i + 1}</Badge>
+                            {typeof item === 'object' ? renderRecursive(item, depth + 1) : <span className="text-sm font-black text-slate-700 block">{renderValue(item)}</span>}
+                            {isAddressObj && fullAddress.length > 10 && <MapEmbed address={fullAddress} />}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] w-full overflow-hidden">
                       {renderRecursive(value, depth + 1)}
+                      {(() => {
+                        const isAddressObj = typeof value === 'object' && value !== null && (value.logradouro || value.endereco || value.rua || value.cep);
+                        const fullAddress = isAddressObj ? [value.logradouro || value.endereco || value.rua, value.numero, value.complemento, value.bairro, value.cidade, value.uf, value.cep].filter(Boolean).join(', ') : '';
+                        return isAddressObj && fullAddress.length > 10 ? <MapEmbed address={fullAddress} /> : null;
+                      })()}
                     </div>
                   )}
                 </div>
