@@ -77,15 +77,13 @@ export function MapEmbed({ address }: MapEmbedProps) {
           </div>
         ) : coords ? (
           <iframe
-            title="Mapa"
+            title="Mapa 3D de Alta Qualidade"
             width="100%"
             height="100%"
             frameBorder="0"
-            scrolling="no"
-            marginHeight={0}
-            marginWidth={0}
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(coords.lon) - 0.005},${parseFloat(coords.lat) - 0.005},${parseFloat(coords.lon) + 0.005},${parseFloat(coords.lat) + 0.005}&layer=mapnik&marker=${coords.lat},${coords.lon}`}
-            className="w-full h-full grayscale-[0.2] contrast-[1.1]"
+            src={`/map3d.html?lat=${coords.lat}&lon=${coords.lon}`}
+            className="w-full h-full"
+            allow="fullscreen"
           />
         ) : !loading && (
            <div className="absolute inset-0 flex items-center justify-center">
