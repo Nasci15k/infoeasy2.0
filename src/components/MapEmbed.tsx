@@ -81,7 +81,7 @@ export function MapEmbed({ address }: MapEmbedProps) {
             width="100%"
             height="100%"
             frameBorder="0"
-            src={`/map3d.html?lat=${coords.lat}&lon=${coords.lon}`}
+            src={`https://maps.google.com/maps?q=${coords.lat},${coords.lon}&t=k&z=19&ie=UTF8&iwloc=&output=embed`}
             className="w-full h-full"
             allow="fullscreen"
           />
