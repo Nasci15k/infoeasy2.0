@@ -50,7 +50,7 @@ export function ApiTokensTab() {
   const { data: users } = useQuery({
     queryKey: ['admin-profiles-list'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, email, full_name, nome').order('email');
+      const { data, error } = await supabase.from('profiles').select('id, email, full_name').order('email');
       if (error) throw error;
       return data || [];
     }

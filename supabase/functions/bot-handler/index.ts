@@ -758,34 +758,30 @@ async function buildTempMailMenu(userId: number, supabase: ReturnType<typeof cre
 
 async function syncTempMail(userId: number, supabase: ReturnType<typeof createClient>) {
   const { data: temp } = await supabase.from('bot_temp_emails').select('*').eq('telegram_id', String(userId)).maybeSingle();
-  if (!temp) return;
+  if (!temp || !temp.token) return;
 
-  const [login, domain] = temp.email.split('@');
-  const url = `https://www.1secmail.com/api/v1/?action=getMessages&login=${login}&domain=${domain}`;
-  
   try {
-    const res = await fetch(url);
-    const messages = await res.json();
+    const res = await fetch(`https://api.tempmail.lol/v2/inbox?token=${temp.token}`);
+    const data = await res.json();
     
-    if (Array.isArray(messages)) {
-      for (const m of messages) {
-        // Verificar se já existe
+    if (data.emails && Array.isArray(data.emails)) {
+      for (const m of data.emails) {
+        // Verificar se já existe (usando combinação de remetente e assunto como chave)
         const { data: exists } = await supabase.from('bot_temp_messages')
-          .select('id').eq('temp_email_id', temp.id).eq('external_id', m.id).maybeSingle();
+          .select('id')
+          .eq('temp_email_id', temp.id)
+          .eq('from_email', m.from)
+          .eq('subject', m.subject)
+          .maybeSingle();
         
         if (!exists) {
-          // Buscar corpo da mensagem
-          const readUrl = `https://www.1secmail.com/api/v1/?action=readMessage&login=${login}&domain=${domain}&id=${m.id}`;
-          const readRes = await fetch(readUrl);
-          const detail = await readRes.json();
-          
           await supabase.from('bot_temp_messages').insert({
             temp_email_id: temp.id,
-            external_id: m.id,
+            external_id: m.date || Math.floor(Date.now() / 1000),
             from_email: m.from,
             subject: m.subject,
-            body: detail.textBody || detail.body || detail.htmlBody,
-            received_at: m.date
+            body: m.body || m.html || 'Mensagem sem conteúdo',
+            received_at: new Date(m.date * 1000).toISOString()
           });
         }
       }
@@ -1082,13 +1078,16 @@ async function handleTelegram(payload: any, supabase: ReturnType<typeof createCl
       
       // TEMP MAIL ACTIONS
       if (data === 'tempmail:new') {
-        const res = await fetch('https://www.1secmail.com/api/v1/?action=genEmail&count=1');
-        const emails = await res.json();
-        const email = emails[0];
+        const res = await fetch('https://api.tempmail.lol/v2/inbox/create', { method: 'POST' });
+        const resData = await res.json();
 
         // Apagar atual e criar novo
         await supabase.from('bot_temp_emails').delete().eq('telegram_id', String(userId));
-        await supabase.from('bot_temp_emails').insert({ telegram_id: String(userId), email });
+        await supabase.from('bot_temp_emails').insert({ 
+          telegram_id: String(userId), 
+          email: resData.address,
+          token: resData.token
+        });
 
         const { text, keyboard } = await buildTempMailMenu(userId, supabase);
         await tgEdit(tgToken, chatId, msgId, text, { reply_markup: { inline_keyboard: keyboard } });

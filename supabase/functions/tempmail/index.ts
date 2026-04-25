@@ -8,7 +8,6 @@ const corsHeaders = {
 const TEMPMAIL_API_BASE = 'https://api.tempmail.lol';
 
 serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -17,23 +16,14 @@ serve(async (req: Request) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    console.log('TempMail action:', action);
-
     if (action === 'create') {
-      // Create new inbox
       const response = await fetch(`${TEMPMAIL_API_BASE}/v2/inbox/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('TempMail create error:', errorText);
-        throw new Error('Falha ao criar caixa de entrada');
-      }
-
+      if (!response.ok) throw new Error('Falha ao criar caixa de entrada na tempmail.lol');
       const data = await response.json();
-      console.log('TempMail inbox created:', data.address);
       
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -42,40 +32,26 @@ serve(async (req: Request) => {
 
     if (action === 'fetch') {
       const token = url.searchParams.get('token');
-      
-      if (!token) {
-        return new Response(
-          JSON.stringify({ error: 'Token é obrigatório' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      if (!token) throw new Error('Token é obrigatório');
 
       const response = await fetch(`${TEMPMAIL_API_BASE}/v2/inbox?token=${token}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('TempMail fetch error:', errorText);
-        throw new Error('Falha ao buscar emails');
-      }
-
-      const data = await response.json();
-      console.log('TempMail emails fetched:', data.emails?.length || 0);
+      if (!response.ok) throw new Error('Falha ao buscar emails na tempmail.lol');
       
+      const data = await response.json();
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Ação inválida' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Ação inválida' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   } catch (error: any) {
-    console.error('TempMail error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Erro interno' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });
