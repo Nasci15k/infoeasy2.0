@@ -20,6 +20,7 @@ import { ApiTokensTab } from '@/components/admin/ApiTokensTab';
 import { AdminProductsTab } from '@/components/admin/AdminProductsTab';
 import { ApiPlansTab } from '@/components/admin/ApiPlansTab';
 import { AdminTelegramBotTab } from '@/components/admin/AdminTelegramBotTab';
+import { QuickApiManager } from '@/components/admin/QuickApiManager';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export default function Admin() {
@@ -249,6 +250,7 @@ export default function Admin() {
               { value: 'plans', label: 'Planos Consultas', icon: Sparkles },
               { value: 'bots', label: 'Configuração Bots', icon: Bot },
               { value: 'proxy', label: 'Gestão APIs', icon: Terminal },
+              { value: 'mapping', label: 'Mapeamento', icon: Layers },
             ].map(tab => (
               <TabsTrigger 
                 key={tab.value}
@@ -353,6 +355,10 @@ export default function Admin() {
 
           <TabsContent value="proxy" className="animate-in slide-in-from-bottom-8 duration-700">
              <ApiTokensTab />
+          </TabsContent>
+
+          <TabsContent value="mapping" className="animate-in slide-in-from-bottom-8 duration-700">
+             <QuickApiManager />
           </TabsContent>
         </Tabs>
       </main>
